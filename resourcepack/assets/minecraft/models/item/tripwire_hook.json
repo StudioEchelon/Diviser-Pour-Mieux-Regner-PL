@@ -1,0 +1,12 @@
+{
+  "parent": "minecraft:item/generated",
+  "textures": {
+    "layer0": "minecraft:item/tripwire_hook"
+  },
+  "overrides": [
+    {
+      "predicate": { "custom_model_data": 5047 },
+      "model": "dpmr:item/carabine_rare"
+    }
+  ]
+}

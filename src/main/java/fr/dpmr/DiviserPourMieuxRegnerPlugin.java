@@ -90,6 +90,7 @@ public final class DiviserPourMieuxRegnerPlugin extends JavaPlugin {
     @Override
     public void onEnable() {
         saveDefaultConfig();
+        mergeConfigDefaultsFromJar();
 
         languageStore = new PlayerLanguageStore(this);
         I18n.init(this, languageStore);
@@ -252,50 +253,78 @@ public final class DiviserPourMieuxRegnerPlugin extends JavaPlugin {
     private void mergeConfigDefaultsFromJar() {
         try (InputStream stream = getResource("config.yml")) {
             if (stream == null) {
+                getLogger().severe("config.yml introuvable dans le .jar — impossible de fusionner les CMD armes.");
                 return;
             }
             FileConfiguration cfg = getConfig();
             YamlConfiguration def = YamlConfiguration.loadConfiguration(new InputStreamReader(stream, StandardCharsets.UTF_8));
-            cfg.setDefaults(def);
-            cfg.options().copyDefaults(true);
-            // copyDefaults ne remplit pas toujours weapons.custom-model-data.* sur les vieux YAML
-            mergeMissingKeys(cfg, def, "weapons.custom-model-data");
-            mergeMissingKeys(cfg, def, "resource-pack.local");
-            mergeMissingKeys(cfg, def, "resource-pack.manifest");
+            int cmdAdded = mergeWeaponCustomModelData(cfg, def);
+            mergeResourcePackSubsection(cfg, def, "local");
+            mergeResourcePackSubsection(cfg, def, "manifest");
             saveConfig();
             reloadConfig();
-            getLogger().info("config.yml : cles par defaut fusionnees (dont weapons.custom-model-data si manquantes).");
+            getLogger().info("config.yml : fusion jar — weapons.custom-model-data +" + cmdAdded + " cle(s), resource-pack local/manifest complete si manquant.");
         } catch (IOException e) {
             getLogger().warning("Fusion config.yml par defaut: " + e.getMessage());
         }
     }
 
     /**
-     * Ajoute les cles presentes dans {@code def} sous {@code path} si absentes de {@code cfg} (meme niveau).
+     * Fusionne {@code weapons.custom-model-data} via sections explicites (chemins avec tirets : fiable sur tous les YAML Bukkit).
      */
-    private static void mergeMissingKeys(FileConfiguration cfg, FileConfiguration def, String path) {
-        ConfigurationSection from = def.getConfigurationSection(path);
+    private static int mergeWeaponCustomModelData(FileConfiguration cfg, YamlConfiguration def) {
+        ConfigurationSection wDef = def.getConfigurationSection("weapons");
+        ConfigurationSection from = wDef != null ? wDef.getConfigurationSection("custom-model-data") : null;
+        if (from == null) {
+            return 0;
+        }
+        ConfigurationSection wCfg = cfg.getConfigurationSection("weapons");
+        if (wCfg == null) {
+            wCfg = cfg.createSection("weapons");
+        }
+        ConfigurationSection into = wCfg.getConfigurationSection("custom-model-data");
+        if (into == null) {
+            into = wCfg.createSection("custom-model-data");
+        }
+        int added = 0;
+        for (String key : from.getKeys(false)) {
+            Object defVal = from.get(key);
+            if (defVal instanceof ConfigurationSection) {
+                continue;
+            }
+            if (!into.contains(key)) {
+                into.set(key, defVal);
+                added++;
+                continue;
+            }
+            Object cur = into.get(key);
+            if (cur instanceof Number cn && cn.intValue() == 0
+                    && defVal instanceof Number dn && dn.intValue() > 0) {
+                into.set(key, defVal);
+                added++;
+            }
+        }
+        return added;
+    }
+
+    private static void mergeResourcePackSubsection(FileConfiguration cfg, YamlConfiguration def, String subsection) {
+        ConfigurationSection rpDef = def.getConfigurationSection("resource-pack");
+        ConfigurationSection from = rpDef != null ? rpDef.getConfigurationSection(subsection) : null;
         if (from == null) {
             return;
         }
-        ConfigurationSection into = cfg.getConfigurationSection(path);
+        ConfigurationSection rpCfg = cfg.getConfigurationSection("resource-pack");
+        if (rpCfg == null) {
+            rpCfg = cfg.createSection("resource-pack");
+        }
+        ConfigurationSection into = rpCfg.getConfigurationSection(subsection);
         if (into == null) {
-            for (String key : from.getKeys(false)) {
-                cfg.set(path + "." + key, from.get(key));
-            }
-            return;
+            into = rpCfg.createSection(subsection);
         }
         for (String key : from.getKeys(false)) {
             Object defVal = from.get(key);
             if (!into.contains(key)) {
-                cfg.set(path + "." + key, defVal);
-                continue;
-            }
-            Object cur = into.get(key);
-            // Anciens YAML avec CMD=0 : corrige vers la valeur du jar (0 = pas de texture custom)
-            if (cur instanceof Number cn && cn.intValue() == 0
-                    && defVal instanceof Number dn && dn.intValue() > 0) {
-                cfg.set(path + "." + key, defVal);
+                into.set(key, defVal);
             }
         }
     }

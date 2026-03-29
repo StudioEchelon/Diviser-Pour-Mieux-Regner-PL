@@ -1,0 +1,9 @@
+{
+  "parent": "minecraft:block/beacon",
+  "overrides": [
+    {
+      "predicate": { "custom_model_data": 5049 },
+      "model": "dpmr:item/carabine_mk18"
+    }
+  ]
+}

@@ -12,6 +12,7 @@ import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.Action;
 import org.bukkit.event.player.PlayerInteractEvent;
+import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.inventory.EquipmentSlot;
 import org.bukkit.inventory.ItemStack;
@@ -73,6 +74,43 @@ public class BandageManager implements Listener {
             meta.setCustomModelData(cmd);
         }
         meta.getPersistentDataContainer().set(keyConsumable, PersistentDataType.STRING, type.name());
+    }
+
+    /** Met a jour nom / lore / CMD des bandages & potions DPMR deja en inventaire. */
+    public void refreshConsumableStack(ItemStack item) {
+        if (item == null || item.getType().isAir()) {
+            return;
+        }
+        DpmrConsumable type = getConsumableType(item);
+        if (type == null) {
+            return;
+        }
+        FileConfiguration cfg = plugin.getConfig();
+        String ck = type.configKey();
+        if (type.material() == Material.POTION && item.getItemMeta() instanceof PotionMeta pMeta) {
+            applyMetaCommon(pMeta, type, cfg, ck);
+            item.setItemMeta(pMeta);
+        } else if (item.hasItemMeta()) {
+            ItemMeta meta = item.getItemMeta();
+            applyMetaCommon(meta, type, cfg, ck);
+            item.setItemMeta(meta);
+        }
+    }
+
+    public void refreshDpmrConsumablesInInventory(Player player) {
+        if (player == null) {
+            return;
+        }
+        for (ItemStack stack : player.getInventory().getContents()) {
+            refreshConsumableStack(stack);
+        }
+        refreshConsumableStack(player.getInventory().getItemInOffHand());
+    }
+
+    @EventHandler
+    public void onJoinRefreshConsumableModels(PlayerJoinEvent event) {
+        Player p = event.getPlayer();
+        plugin.getServer().getScheduler().runTaskLater(plugin, () -> refreshDpmrConsumablesInInventory(p), 28L);
     }
 
     private static int defaultCmd(DpmrConsumable type) {

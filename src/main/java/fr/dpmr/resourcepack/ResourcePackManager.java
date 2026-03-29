@@ -89,6 +89,13 @@ public class ResourcePackManager implements Listener {
      */
     public void startManifestPolling() {
         stopManifestScheduler();
+        String srcEarly = plugin.getConfig().getString("resource-pack.source", "external");
+        String muEarly = plugin.getConfig().getString("resource-pack.manifest.url", "");
+        if (muEarly != null && !muEarly.isBlank()
+                && ("bundled".equalsIgnoreCase(srcEarly) || "local".equalsIgnoreCase(srcEarly))) {
+            plugin.getLogger().warning("resource-pack.manifest.url est rempli mais source=\"" + srcEarly
+                    + "\" : le manifest GitHub est IGNORE. Mets resource-pack.source: manifest dans config.yml.");
+        }
         if (!manifestWanted()) {
             return;
         }
@@ -428,7 +435,11 @@ public class ResourcePackManager implements Listener {
                             () -> sendPack(player, strict, manualRefresh, manifestRetry + 1), 10L);
                     return;
                 }
-                player.sendMessage(Component.text("Resource pack: URL introuvable (manifest pas charge ou config). /dpmr resourcepack", NamedTextColor.RED));
+                if (manifestWanted()) {
+                    player.sendMessage(Component.text("Manifest: URL du zip introuvable (JSON non charge ou erreur reseau). Logs serveur + /dpmr resourcepack", NamedTextColor.RED));
+                } else {
+                    player.sendMessage(Component.text("resource-pack.url vide. Mets source: manifest + manifest.url GitHub, ou source: external + url + sha1.", NamedTextColor.RED));
+                }
                 return;
             }
         }

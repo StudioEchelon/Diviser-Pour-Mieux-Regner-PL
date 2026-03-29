@@ -46,24 +46,62 @@ weapons:
   # CustomModelData par arme (pour resource pack / modèles 3D)
   # Exemple: CARABINE_MK18 utilise GOLDEN_PICKAXE, on override son modèle via CMD=1001
   custom-model-data:
+    # Carabine / jerrican (pickaxe d’or, seau)
     CARABINE_MK18: 1001
     JERRYCAN: 2001
+    # Bâtons = revolvers / Glock (pack: stick.json)
+    GLOCK18: 5016
     REVOLVER: 5001
-    EP_FUSIL_POMPE: 5002
-    CM_SHOTGUN: 5003
-    CARABINE_RARE: 5004
     LG_REVOLVER_FLAMME: 5005
     EP_REVOLVER_CYBER: 5006
     CM_REVOLVER_CHATAIGNE: 5007
+    # Houes / pelles / pinceau / pioches (pompes, diviser…)
+    CM_SHOTGUN: 5003
+    EP_FUSIL_POMPE: 5002
+    CARABINE_RARE: 5004
     EP_POMPE_ACIDE: 5008
     LG_POMPE_DOUBLE: 5009
     LG_POMPE_DOUBLE_CYBER: 5010
-    # Pompi / houes / pinceau (overrides dans le resource pack ; sans CMD > 0 = vanilla)
     FUSIL_POMPE_RL: 5011
     FUSIL_POMPE_CROIX: 5012
     GHOST_POMPE: 5013
     DIVISER_POUR_MIEUX_REGNER: 5014
     GHOST_DIVISER: 5015
+    # Autres armes (overrides minecraft/models/item/*.json — textures réutilisées du pack DPMR)
+    CM_BAMBOU: 5020
+    GLITCH: 5021
+    CM_PEPITE: 5022
+    CM_PANNEAU: 5023
+    HURRICANE: 5024
+    AK47: 5025
+    NOVA: 5026
+    GHOST_LANCE_FLAMME: 5027
+    PULSE: 5028
+    UC_EPEE_BOIS: 5029
+    BOMB_ORB: 5030
+    INFERNO: 5031
+    DEAGLE_RL: 5032
+    LANCE_MARRONS: 5033
+    RADIANT: 5034
+    RZ_COEUR_MER: 5035
+    SERUM_SOIN: 5036
+    LANCE_SOIN: 5037
+    DRAGUNOV_SVD: 5038
+    EP_DRAGON: 5039
+    EP_GRIMOIRE: 5040
+    EP_NETH_INGOT: 5041
+    EP_PHANTOM: 5042
+    GRAPPIN_RL: 5043
+    SOLAR: 5044
+    LG_TOTEM: 5045
+    LG_WITHER: 5046
+    AWP: 5047
+    LG_ANCRE: 5048
+    LG_BEACON: 5049
+    MINIGUN_M134: 5050
+    THUNDER: 5051
+    LG_TETE_DRAGON: 5052
+    GHOST_NUKE: 5053
 
 # Ancien bloc bandage (toujours lu pour compat : soins « moyen » par défaut)
 bandage:
@@ -377,11 +415,14 @@ npc-war-world:
 
 resource-pack:
   enabled: true
-  # bundled / local = HTTP integre sur le VPS (port + pare-feu) | external = url + sha1 fixes dans ce fichier
-  # manifest = JSON HTTPS (GitHub raw, etc.) → url + sha1 du zip ; recommande si le pack ne charge pas en bundled
+  # bundled / local = HTTP sur le VPS | external = url + sha1 ici | manifest = JSON GitHub (HTTPS)
+  # IMPORTANT : pour GitHub, mets source: manifest ET remplis manifest.url (sinon manifest.url est ignore si source=bundled)
   source: bundled
-  # JSON public. Avec GitHub Actions (.github/workflows/resourcepack.yml) : apres push textures,
-  # le workflow remplit hosted/dpmr-pack-manifest.json → URL du type raw.githubusercontent.com/USER/REPO/main/hosted/...
+  # Exemple GitHub StudioEchelon/DPMRPack (branche main) — a copier sur le serveur si tu utilises manifest :
+  # source: manifest
+  # manifest:
+  #   url: "https://raw.githubusercontent.com/StudioEchelon/DPMRPack/main/hosted/dpmr-pack-manifest.json"
+  #   refresh-seconds: 900
   manifest:
     url: ""
     # 0 = seulement au demarrage et /dpmr warworld reload ; >0 = re-telecharge le manifest toutes les N secondes

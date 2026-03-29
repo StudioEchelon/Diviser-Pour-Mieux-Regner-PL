@@ -1,0 +1,16 @@
+{
+  "parent": "minecraft:item/generated",
+  "textures": {
+    "layer0": "minecraft:item/fire_charge"
+  },
+  "overrides": [
+    {
+      "predicate": { "custom_model_data": 5030 },
+      "model": "dpmr:item/pompe_acide"
+    },
+    {
+      "predicate": { "custom_model_data": 5031 },
+      "model": "dpmr:item/revolver_flamme"
+    }
+  ]
+}

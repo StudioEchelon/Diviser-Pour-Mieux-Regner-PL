@@ -1,0 +1,16 @@
+{
+  "parent": "minecraft:item/handheld",
+  "textures": {
+    "layer0": "minecraft:item/blaze_rod"
+  },
+  "overrides": [
+    {
+      "predicate": { "custom_model_data": 5026 },
+      "model": "dpmr:item/epic_shotgun"
+    },
+    {
+      "predicate": { "custom_model_data": 5027 },
+      "model": "dpmr:item/revolver_flamme"
+    }
+  ]
+}

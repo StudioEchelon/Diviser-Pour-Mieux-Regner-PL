@@ -11,6 +11,7 @@ import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.Action;
 import org.bukkit.event.player.PlayerInteractEvent;
+import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.inventory.EquipmentSlot;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
@@ -53,6 +54,39 @@ public class RadarManager implements Listener {
             return false;
         }
         return item.getItemMeta().getPersistentDataContainer().has(keyRadar, PersistentDataType.BYTE);
+    }
+
+    public void refreshRadarStack(ItemStack item) {
+        if (!isRadar(item)) {
+            return;
+        }
+        ItemMeta meta = item.getItemMeta();
+        if (meta == null) {
+            return;
+        }
+        int cmd = plugin.getConfig().getInt("radar.custom-model-data", 4001);
+        if (cmd > 0) {
+            meta.setCustomModelData(cmd);
+        }
+        item.setItemMeta(meta);
+    }
+
+    public void refreshRadarsInInventory(Player player) {
+        if (player == null) {
+            return;
+        }
+        for (ItemStack stack : player.getInventory().getContents()) {
+            if (stack != null) {
+                refreshRadarStack(stack);
+            }
+        }
+        refreshRadarStack(player.getInventory().getItemInOffHand());
+    }
+
+    @EventHandler
+    public void onJoinRefreshRadarModels(PlayerJoinEvent event) {
+        Player p = event.getPlayer();
+        plugin.getServer().getScheduler().runTaskLater(plugin, () -> refreshRadarsInInventory(p), 28L);
     }
 
     @EventHandler

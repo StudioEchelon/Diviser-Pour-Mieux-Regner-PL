@@ -18,6 +18,7 @@ import org.bukkit.event.entity.ProjectileHitEvent;
 import org.bukkit.event.player.PlayerDropItemEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.event.player.PlayerItemHeldEvent;
+import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.event.player.PlayerSwapHandItemsEvent;
 import org.bukkit.inventory.EquipmentSlot;
@@ -209,6 +210,33 @@ public class WeaponManager implements Listener {
         if (cmd > 0) {
             meta.setCustomModelData(cmd);
         }
+    }
+
+    /**
+     * Reapplique le CustomModelData depuis la config sur toutes les armes DPMR (inventaire + offhand).
+     * Utile apres MAJ du config.yml / resource pack : les items deja obtenus recuperent la bonne texture.
+     */
+    public void refreshDpmrWeaponsInInventory(Player player) {
+        if (player == null) {
+            return;
+        }
+        for (ItemStack stack : player.getInventory().getContents()) {
+            refreshWeaponIfDpmr(stack, player);
+        }
+        refreshWeaponIfDpmr(player.getInventory().getItemInOffHand(), player);
+    }
+
+    private void refreshWeaponIfDpmr(ItemStack stack, Player viewer) {
+        if (stack == null || stack.getType().isAir() || readWeaponId(stack) == null) {
+            return;
+        }
+        refreshWeaponMeta(stack, viewer);
+    }
+
+    @EventHandler
+    public void onJoinRefreshWeaponModels(PlayerJoinEvent event) {
+        Player p = event.getPlayer();
+        plugin.getServer().getScheduler().runTaskLater(plugin, () -> refreshDpmrWeaponsInInventory(p), 28L);
     }
 
     public void bumpReserveAmmo(Player player, WeaponProfile w, int delta) {

@@ -1,0 +1,12 @@
+{
+  "parent": "minecraft:item/generated",
+  "textures": {
+    "layer0": "minecraft:item/enchanted_book"
+  },
+  "overrides": [
+    {
+      "predicate": { "custom_model_data": 5040 },
+      "model": "dpmr:item/revolver_cyber"
+    }
+  ]
+}
