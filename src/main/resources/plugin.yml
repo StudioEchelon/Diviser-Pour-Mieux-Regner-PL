@@ -3,62 +3,98 @@ version: '${version}'
 main: fr.dpmr.DiviserPourMieuxRegnerPlugin
 api-version: '1.20'
 authors: [ "Thomas", "Cursor" ]
-description: "Mode apocalypse - Diviser Pour Mieux Regner"
+description: "Apocalypse mode — Divide and Conquer (DPMR)"
 
 softdepend:
   - Citizens
 
 commands:
   dpmr:
-    description: "Controle le mode apocalypse et la configuration"
+    description: "Control apocalypse mode and plugin configuration"
     usage: "/dpmr <start|stop|status|...|givelaunchpad|launchpads|givegun|...>"
     permission: dpmr.admin
   points:
-    description: "Voir ses points"
-    usage: "/points [joueur]"
+    description: "View your points"
+    usage: "/points [player]"
   topdpmr:
-    description: "Leaderboard des points"
+    description: "Points leaderboard"
     usage: "/topdpmr"
   clan:
-    description: "Gestion des clans"
-    usage: "/clan <create|join|leave|info|top>"
+    description: "Clan hub (GUI), invites, and management"
+    usage: "/clan | /clan <create|join|leave|info|top|accept|deny|invite|inviteall|kick>"
   armes:
-    description: "Catalogue des armes par rarete"
+    description: "Weapon catalog by rarity"
     usage: "/armes"
   boutique:
-    description: "Acheter des armes avec les points"
+    description: "Buy weapons with points"
     usage: "/boutique"
   leaderboard:
-    description: "Classement des points (alias de /topdpmr)"
+    description: "Points ranking (alias of /topdpmr)"
     usage: "/leaderboard"
   hologramtop:
-    description: "Poser ou retirer un hologramme top 10 (admin)"
+    description: "Place or remove a top-10 hologram (admin)"
     usage: "/hologramtop | /hologramtop remove"
     permission: dpmr.admin
   cosmetics:
-    description: "Menu et achats de cosmetics"
+    description: "Cosmetics menu and purchases"
     usage: "/cosmetics | /cosmetics buy <id>"
+  skin:
+    description: "Weapon skins shop (Thompson, etc.)"
+    usage: "/skin | /skin thompson"
   hdv:
-    description: "Hotel des ventes (armes, objets)"
+    description: "Player market (weapons, items)"
     usage: "/hdv"
   ressourcepack:
-    description: "Recharger le resource pack DPMR"
+    description: "Reload the DPMR resource pack"
     usage: "/ressourcepack"
   profil:
-    description: "Ouvre ton profil et l'arbre d'upgrades"
+    description: "Open your profile and upgrade tree"
     usage: "/profil"
   lang:
-    description: "Choose display language (en/fr)"
+    description: "Display language preference (strings are English-only)"
     usage: "/lang <en|fr>"
   killdpmrnpcs:
-    description: "Retire tous les PNJ de combat DPMR sur tous les mondes"
+    description: "Remove all DPMR combat NPCs on all worlds"
     usage: "/killdpmrnpcs"
     permission: dpmr.killdpmrnpcs
+  lootbox:
+    description: "Daily loot box and Ultimate loot box help"
+    usage: "/lootbox daily | /lootbox give ultimate <player> [amount]"
+  kit:
+    description: "Evolving kits (playtime and rank)"
+    usage: "/kit <player|grade|info>"
+  dailyquest:
+    description: "Open your three daily quest tracks (chest GUI)"
+    usage: "/dailyquest"
+    aliases: [ dailyquests, dq ]
+  conquerpass:
+    description: "Open the Conquer Pass (combat pass / seasons)"
+    usage: "/conquerpass"
+    aliases: [ cpass, passe ]
+  trophies:
+    description: "List your unlocked mastery trophies"
+    usage: "/trophies"
+    aliases: [ trophy, achievements ]
 
 permissions:
   dpmr.admin:
-    description: "Permission admin pour gerer le mode DPMR"
+    description: "Admin permission for DPMR mode"
     default: op
   dpmr.killdpmrnpcs:
-    description: "Tuer / retirer tous les PNJ DPMR (spawners, war world, etc.)"
+    description: "Remove all DPMR NPCs (spawners, war world, etc.)"
     default: op
+  dpmr.conquerpass.premium:
+    description: "Unlock Conquer Pass premium track without purchasing with points"
+    default: false
+  dpmr.kit.use:
+    description: "Use /kit to claim evolving playtime and grade kits"
+    default: true
+  dpmr.kit.grade.vip:
+    description: "Mid tier for /kit grade (configure in evolving-kits)"
+    default: false
+  dpmr.kit.grade.elite:
+    description: "Top tier for /kit grade (configure in evolving-kits)"
+    default: false
+  dpmr.vault.use:
+    description: "Open the personal vault block (configure vault.use-permission in config)"
+    default: true

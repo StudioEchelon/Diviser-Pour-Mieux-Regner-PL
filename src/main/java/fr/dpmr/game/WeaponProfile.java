@@ -71,13 +71,54 @@ public enum WeaponProfile {
     PULSE(Material.IRON_HORSE_ARMOR, "PULSE", NamedTextColor.AQUA, 5.0, 48, 16, 64, 25, 2,
             FireMode.HITSCAN, Particle.ELECTRIC_SPARK, Sound.ENTITY_EVOKER_CAST_SPELL, 0.7f, 1.5f, 1.0, 1, 0, 4, WeaponRarity.UNCOMMON, ScopeProfile.NONE, -1),
 
+    /** Mitraillette Thompson : skins vendus a part (PDC {@code weapon_cosmetic}). Item de base : spyglass. */
+    THOMPSON(Material.SPYGLASS, "Thompson", NamedTextColor.GOLD, 6.0, 44, 28, 112, 30, 3,
+            FireMode.HITSCAN, Particle.SMOKE, Sound.ENTITY_IRON_GOLEM_ATTACK, 0.78f, 1.12f, 2.4, 1, 0, 3,
+            WeaponRarity.UNCOMMON, ScopeProfile.NONE, -1),
+
     UC_EPEE_BOIS(Material.WOODEN_SWORD, "Rapiere bois", NamedTextColor.GOLD, 5.4, 41, 14, 56, 27, 4,
             FireMode.HITSCAN, Particle.SWEEP_ATTACK, Sound.ENTITY_PLAYER_ATTACK_WEAK, 0.5f, 1.3f, 1.5, 1, 0, 3, WeaponRarity.UNCOMMON,
             ScopeProfile.NONE, -1),
 
+    /**
+     * Couteau : tres courte portee, gros degats par coup (pas un one-shot full vie / armure),
+     * cadence limitee. Les skins cosmetics changent uniquement modele / particules / sons.
+     */
+    COUTEAU_COMBAT(Material.IRON_SWORD, "Couteau de combat", NamedTextColor.DARK_RED,
+            14.0, 4.8, 6, 24, 38, 22,
+            FireMode.HITSCAN, Particle.SWEEP_ATTACK, Sound.ENTITY_PLAYER_ATTACK_SWEEP, 0.55f, 1.05f, 0.12, 1, 2.4, 4,
+            WeaponRarity.UNCOMMON, ScopeProfile.NONE, -1),
+
     // --- Rare ---
     BOMB_ORB(Material.FIRE_CHARGE, "Lance-bombes", NamedTextColor.RED, 7.0, 40, 4, 24, 45, 12,
             FireMode.PROJECTILE_BOMB, Particle.LAVA, Sound.ENTITY_TNT_PRIMED, 0.9f, 0.95f, 1.8, 1, 1.2, 5, WeaponRarity.RARE, ScopeProfile.NONE, -1),
+
+    /** Lance-roquettes visuel « voiture en pierre », chargeur 1, rechargement long, grosse explosion. */
+    CLIO3(Material.DISPENSER, "Clio 3", NamedTextColor.DARK_GRAY,
+            26.0, 96, 1, 12, 120, 52,
+            FireMode.PROJECTILE_CLIO3, Particle.CAMPFIRE_COSY_SMOKE, Sound.ENTITY_IRON_GOLEM_ATTACK, 1.0f, 0.72f, 0.06, 1, 0.76, 6,
+            WeaponRarity.EPIC, ScopeProfile.NONE, 3),
+
+    /** Mortier portable : tir en cloche, atelier (flammes / barrage / acide). */
+    LE_MORTIER(Material.BLAST_FURNACE, "Mortier", NamedTextColor.GOLD,
+            9.5, 56, 1, 10, 68, 40,
+            FireMode.PROJECTILE_MORTAR, Particle.CAMPFIRE_COSY_SMOKE, Sound.ENTITY_GENERIC_EXPLODE, 0.88f, 0.82f, 0.35, 1, 0.98, 6,
+            WeaponRarity.EPIC, ScopeProfile.NONE, 2),
+
+    /** Lance-roquettes : atelier guide / demolition / drone mitrailleur. */
+    LANCE_ROQUETTE(Material.ENDER_EYE, "Lance-roquettes", NamedTextColor.RED,
+            12.0, 80, 1, 8, 88, 38,
+            FireMode.PROJECTILE_ROCKET, Particle.SMOKE, Sound.ENTITY_FIREWORK_ROCKET_LAUNCH, 0.92f, 0.95f, 0.12, 1, 1.52, 7,
+            WeaponRarity.EPIC, ScopeProfile.NONE, 3),
+
+    /**
+     * Tourelle portative : clic droit au sol pose des blocs + siege ; tu es monte dessus.
+     * Clic droit monte : tir hitscan. Sneak : demonte tout.
+     */
+    TOURELLE_PORTATIVE(Material.SMITHING_TABLE, "Tourelle portative", NamedTextColor.DARK_AQUA,
+            5.8, 42, 35, 105, 52, 4,
+            FireMode.TURRET_DEPLOY, Particle.SMOKE, Sound.ENTITY_IRON_GOLEM_ATTACK, 0.82f, 1.05f, 1.85, 1, 0, 3,
+            WeaponRarity.EPIC, ScopeProfile.NONE, -1),
 
     DEAGLE_RL(Material.PRISMARINE_CRYSTALS, "Desert Eagle", NamedTextColor.DARK_GRAY, 10.5, 32, 8, 24, 42, 20,
             FireMode.HITSCAN, Particle.CRIT, Sound.ENTITY_GENERIC_EXPLODE, 0.75f, 0.95f, 2.65, 1, 0, 3, WeaponRarity.RARE, ScopeProfile.NONE, -1),
@@ -167,6 +208,15 @@ public enum WeaponProfile {
     AWP(Material.TRIPWIRE_HOOK, "AWP", NamedTextColor.DARK_GREEN, 18.0, 95, 5, 15, 65, 22,
             FireMode.HITSCAN, Particle.CRIT, Sound.ENTITY_GENERIC_EXPLODE, 1.0f, 0.55f, 0.1, 1, 0, 2, WeaponRarity.LEGENDARY,
             ScopeProfile.sniper(0.02, 1.65, 1.28, 20), -1),
+
+    /**
+     * Sniper légendaire : maintiens le clic droit (tension d’arc) — plus c’est long, plus le rayon porte loin et frappe fort.
+     */
+    LG_TRAQUEUR(Material.BOW, "Traqueur", NamedTextColor.GOLD,
+            12.0, 78, 4, 16, 78, 28,
+            FireMode.HITSCAN_BOW_CHARGE, Particle.END_ROD, Sound.ENTITY_ARROW_SHOOT,
+            0.95f, 0.72f, 0.085, 1, 0, 3, WeaponRarity.LEGENDARY,
+            ScopeProfile.sniper(0.018, 1.58, 1.22, 19), -1),
 
     LG_REVOLVER_FLAMME(Material.STICK, "Revolver flamme", NamedTextColor.RED,
             9.0, 36, 6, 24, 36, 10,
@@ -428,10 +478,15 @@ public enum WeaponProfile {
             case HITSCAN_CROSS -> "Pompe croix";
             case PROJECTILE_GASOLINE -> "Essence";
             case PROJECTILE_BOMB -> "Bombe";
+            case PROJECTILE_CLIO3 -> "Clio lancee";
+            case PROJECTILE_MORTAR -> "Mortier";
+            case PROJECTILE_ROCKET -> "Roquette";
             case NUCLEAR_STRIKE -> "Nucleaire";
             case GRAPPLE_BEAM -> "Grappin";
             case PROJECTILE_SERUM_ZONE -> "Serum de zone";
             case PROJECTILE_HEAL_DART -> "Soin par tir";
+            case HITSCAN_BOW_CHARGE -> "Rayon charge (arc)";
+            case TURRET_DEPLOY -> "Tourelle";
         };
     }
 
@@ -463,17 +518,43 @@ public enum WeaponProfile {
         return this == BOMB_ORB;
     }
 
+    public boolean isMortarWeapon() {
+        return this == LE_MORTIER;
+    }
+
+    public boolean isRocketWeapon() {
+        return this == LANCE_ROQUETTE;
+    }
+
+    public boolean isTurretWeapon() {
+        return fireMode == FireMode.TURRET_DEPLOY;
+    }
+
+    /** Revolver de base : atelier lineaire 3 paliers (remplace les 3 voies classiques). */
+    public boolean isRevolverWorkshopWeapon() {
+        return this == REVOLVER;
+    }
+
     public boolean isNuclearWeapon() {
         return this == GHOST_NUKE;
     }
 
+    public boolean isMinigun() {
+        return name().contains("MINIGUN");
+    }
+
     public WeaponDamageType damageType() {
-        if (fireMode == FireMode.PROJECTILE_BOMB || fireMode == FireMode.NUCLEAR_STRIKE) {
+        if (fireMode == FireMode.PROJECTILE_BOMB || fireMode == FireMode.PROJECTILE_CLIO3
+                || fireMode == FireMode.PROJECTILE_MORTAR || fireMode == FireMode.PROJECTILE_ROCKET
+                || fireMode == FireMode.NUCLEAR_STRIKE) {
             return WeaponDamageType.EXPLOSIVE;
         }
         if (fireMode == FireMode.GRAPPLE_BEAM || fireMode == FireMode.PROJECTILE_SERUM_ZONE
                 || fireMode == FireMode.PROJECTILE_GASOLINE || fireMode == FireMode.PROJECTILE_HEAL_DART) {
             return WeaponDamageType.UTILITY;
+        }
+        if (fireMode == FireMode.TURRET_DEPLOY) {
+            return WeaponDamageType.ASSAULT_RIFLE;
         }
         String n = name();
         if (pellets >= 6 || n.contains("POMPE") || n.contains("SHOTGUN") || n.contains("M1014") || n.contains("SPAS")
@@ -482,7 +563,8 @@ public enum WeaponProfile {
         }
         if (n.equals("CARABINE_RARE")
                 || n.contains("SNIPER") || n.contains("AWP") || n.contains("BARRETT") || n.contains("M24") || n.contains("L96")
-                || n.contains("M82") || n.contains("DRAGUNOV") || n.contains("WITHER") || n.contains("TETE_DRAGON")) {
+                || n.contains("M82") || n.contains("DRAGUNOV") || n.contains("WITHER") || n.contains("TETE_DRAGON")
+                || n.contains("TRAQUEUR")) {
             return WeaponDamageType.SNIPER;
         }
         if (n.contains("GLOCK") || n.contains("DEAGLE") || n.contains("USP") || n.contains("PISTOLET")
@@ -492,7 +574,10 @@ public enum WeaponProfile {
         if (n.contains("MINIGUN")) {
             return WeaponDamageType.ASSAULT_RIFLE;
         }
-        if (n.contains("MP") || n.contains("UZI") || n.contains("P90") || n.contains("MITRAILLETTE")) {
+        if (n.contains("THOMPSON") || n.contains("MP") || n.contains("UZI") || n.contains("P90") || n.contains("MITRAILLETTE")) {
+            return WeaponDamageType.SMG;
+        }
+        if (this == COUTEAU_COMBAT) {
             return WeaponDamageType.SMG;
         }
         return WeaponDamageType.ASSAULT_RIFLE;

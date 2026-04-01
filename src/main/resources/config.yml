@@ -5,6 +5,150 @@ mod-tables:
 points:
   per-player-kill: 10
 
+# Prime PvP : un joueur en ligne est designe au hasard ; le tuer donne des points bonus (hors membres du meme clan).
+bounty:
+  enabled: true
+  interval-minutes: 15
+  # Première prime après démarrage du serveur
+  first-delay-seconds: 5
+  reward-points: 50
+  min-players-online: 1
+
+# Shoot these blocks with a DPMR weapon (hitscan or projectile) for a temporary buff. Chat messages are in English.
+# Optional hologram orbs (ItemDisplay): /dpmr powerup add <kind> [wall|float] — saved in plugins/DPMR/powerup-markers.yml
+bonus-powerup-blocks:
+  enabled: true
+  displays:
+    enabled: true
+    # Model scale (1 = full block item size)
+    scale: 0.38
+    glow: true
+    particle-aura: true
+    spin-degrees-per-tick: 3.0
+    bob-amplitude: 0.06
+  rapid-fire:
+    material: BLUE_CONCRETE
+    duration-seconds: 30
+    # Multiplier on shot delay while active (0.2 ≈ 5× faster firing)
+    cooldown-multiplier: 0.2
+  invulnerability:
+    material: GRAY_CONCRETE
+    duration-seconds: 10
+  kill-coins:
+    material: YELLOW_CONCRETE
+    duration-seconds: 60
+    # Extra multiplier on kill points (stacked with profile economy)
+    reward-multiplier: 2.0
+  bullet-shield:
+    material: PURPLE_CONCRETE
+    duration-seconds: 30
+  stealth:
+    material: CYAN_CONCRETE
+    duration-seconds: 20
+
+# Cartes de poker : même effets que bonus-powerup-blocks (clic droit). Couleur = effet ; Valet & Jokers = furtivité.
+poker-cards:
+  enabled: true
+  use-cooldown-seconds: 3
+  item-material: PAPER
+  custom-model-data: 3100
+
+# Daily (1 reward, /lootbox daily) and Ultimate (5 rewards, right-click item) — English UI
+lootbox:
+  enabled: true
+  daily-cooldown-hours: 24
+  # Bukkit material for the Ultimate Loot Box item (admins: /lootbox give ultimate <player>)
+  ultimate-material: NETHER_STAR
+
+# Coffre-fort personnel : clic droit sur le bloc = page 1, sneak + clic = page 2 (54 cases par page, 108 au total).
+vault:
+  enabled: true
+  # Type de bloc déclencheur (évite les matériaux trop courants si tu veux un seul emplacement dédié).
+  block-material: VAULT
+  # Vide = tout le monde ; sinon ex. dpmr.vault.use
+  use-permission: dpmr.vault.use
+
+# Three daily quest systems per player (/dailyquest): Combat, Gathering, Challenge — English GUI
+daily-quests:
+  enabled: true
+  # Points per completed track (up to 3 rewards per day)
+  reward-points: 50
+  slot-count: 3
+  # IANA timezone for the calendar day (empty = JVM default)
+  timezone: ""
+  kill-players:
+    min: 5
+    max: 12
+  kill-mobs:
+    min: 20
+    max: 45
+  catch-fish:
+    min: 3
+    max: 8
+  chop-logs:
+    min: 8
+    max: 22
+  deal-player-damage:
+    min: 45
+    max: 120
+
+# Conquer Pass — /conquerpass (coffre 54 cases). Changer season-id reinitialise la progression + recles paliers.
+conquer-pass:
+  enabled: true
+  season-id: "1"
+  xp-per-tier: 350
+  max-tier: 14
+  page-size: 7
+  xp:
+    player-kill: 40
+    mob-kill: 4
+  premium:
+    permission: "dpmr.conquerpass.premium"
+    unlock-points: 3000
+  tiers:
+    "1":
+      free-points: 30
+      premium-points: 90
+    "2":
+      free-points: 40
+      premium-points: 105
+    "3":
+      free-points: 50
+      premium-points: 120
+    "4":
+      free-points: 60
+      premium-points: 135
+    "5":
+      free-points: 70
+      premium-points: 150
+    "6":
+      free-points: 80
+      premium-points: 170
+    "7":
+      free-points: 90
+      premium-points: 190
+    "8":
+      free-points: 105
+      premium-points: 210
+    "9":
+      free-points: 120
+      premium-points: 235
+    "10":
+      free-points: 135
+      premium-points: 260
+    "11":
+      free-points: 150
+      premium-points: 290
+    "12":
+      free-points: 170
+      premium-points: 320
+    "13":
+      free-points: 190
+      premium-points: 350
+    "14":
+      free-points: 220
+      premium-points: 400
+
 # Objectifs dynamiques (pendant /dpmr start) : rotation automatique, boss bar + ligne scoreboard
 objectives:
   enabled: true
@@ -43,65 +187,89 @@ weapons:
   nuclear-charge-ticks: 400
   nuclear-radius: 14.0
   nuclear-damage: 48.0
-  # CustomModelData par arme (pour resource pack / modèles 3D)
-  # Exemple: CARABINE_MK18 utilise GOLDEN_PICKAXE, on override son modèle via CMD=1001
+  # CustomModelData : cle = nom exact WeaponProfile (Java). 0 = pas de modele pack sur l’item.
+  # Doit correspondre aux overrides du resource pack (stick, golden_hoe, etc.).
   custom-model-data:
-    # Carabine / jerrican (pickaxe d’or, seau)
-    CARABINE_MK18: 1001
-    JERRYCAN: 2001
-    # Bâtons = revolvers / Glock (pack: stick.json)
-    GLOCK18: 5016
-    REVOLVER: 5001
-    LG_REVOLVER_FLAMME: 5005
-    EP_REVOLVER_CYBER: 5006
-    CM_REVOLVER_CHATAIGNE: 5007
-    # Houes / pelles / pinceau / pioches (pompes, diviser…)
-    CM_SHOTGUN: 5003
-    EP_FUSIL_POMPE: 5002
-    CARABINE_RARE: 5004
-    EP_POMPE_ACIDE: 5008
-    LG_POMPE_DOUBLE: 5009
-    LG_POMPE_DOUBLE_CYBER: 5010
-    FUSIL_POMPE_RL: 5011
-    FUSIL_POMPE_CROIX: 5012
-    GHOST_POMPE: 5013
-    DIVISER_POUR_MIEUX_REGNER: 5014
-    GHOST_DIVISER: 5015
-    # Autres armes (overrides minecraft/models/item/*.json — textures réutilisées du pack DPMR)
-    CM_BAMBOU: 5020
-    GLITCH: 5021
-    CM_PEPITE: 5022
-    CM_PANNEAU: 5023
-    HURRICANE: 5024
     AK47: 5025
-    NOVA: 5026
-    GHOST_LANCE_FLAMME: 5027
-    PULSE: 5028
-    UC_EPEE_BOIS: 5029
+    AWP: 5047
     BOMB_ORB: 5030
-    INFERNO: 5031
+    CARABINE_MK18: 1001
+    CARABINE_RARE: 5004
+    CLIO3: 5054
+    CM_BAMBOU: 5020
+    CM_PANNEAU: 5023
+    CM_PEPITE: 5022
+    CM_REVOLVER_CHATAIGNE: 5007
+    CM_SHOTGUN: 5003
     DEAGLE_RL: 5032
-    LANCE_MARRONS: 5033
-    RADIANT: 5034
-    RZ_COEUR_MER: 5035
-    SERUM_SOIN: 5036
-    LANCE_SOIN: 5037
+    DIVISER_POUR_MIEUX_REGNER: 5014
     DRAGUNOV_SVD: 5038
     EP_DRAGON: 5039
+    EP_FUSIL_POMPE: 5002
     EP_GRIMOIRE: 5040
     EP_NETH_INGOT: 5041
     EP_PHANTOM: 5042
+    EP_POMPE_ACIDE: 5008
+    EP_REVOLVER_CYBER: 5006
+    FUSIL_POMPE_CROIX: 5012
+    FUSIL_POMPE_RL: 5011
+    GHOST_DIVISER: 5015
+    GHOST_LANCE_FLAMME: 5027
+    GHOST_NUKE: 5053
+    GHOST_POMPE: 5013
+    GLITCH: 5021
+    GLOCK18: 5016
     GRAPPIN_RL: 5043
-    SOLAR: 5044
-    LG_TOTEM: 5045
-    LG_WITHER: 5046
-    AWP: 5047
+    HURRICANE: 5024
+    INFERNO: 5031
+    JERRYCAN: 2001
+    LANCE_MARRONS: 5033
+    LANCE_SOIN: 5037
+    LE_MORTIER: 5056
+    LANCE_ROQUETTE: 5057
     LG_ANCRE: 5048
     LG_BEACON: 5049
-    MINIGUN_M134: 5050
-    THUNDER: 5051
+    LG_POMPE_DOUBLE: 5009
+    LG_POMPE_DOUBLE_CYBER: 5010
+    LG_REVOLVER_FLAMME: 5005
     LG_TETE_DRAGON: 5052
-    GHOST_NUKE: 5053
+    LG_TOTEM: 5045
+    LG_TRAQUEUR: 5063
+    LG_WITHER: 5046
+    MINIGUN_M134: 5050
+    NOVA: 5026
+    PULSE: 5028
+    RADIANT: 5034
+    REVOLVER: 5001
+    RZ_COEUR_MER: 5035
+    SERUM_SOIN: 5036
+    SOLAR: 5044
+    THOMPSON: 5070
+    THUNDER: 5051
+    UC_EPEE_BOIS: 5029
+    COUTEAU_COMBAT: 5058
+
+# Skins couteau (arme COUTEAU_COMBAT) : cles = id CosmeticProfile ; 0 = garder le modele de base
+cosmetics:
+  knife-skins:
+    knife_karambit: 5059
+    knife_butterfly: 5060
+    knife_m9_bayonet: 5061
+    knife_flip: 5062
+  # Skins Thompson (cles = id CosmeticProfile WEAPON_SKIN, CustomModelData spyglass.json)
+  weapon-skins:
+    thompson_skin_1: 5071
+    thompson_skin_2: 5072
+    thompson_skin_3: 5073
+    thompson_skin_4: 5074
+    thompson_skin_5: 5075
+    thompson_skin_6: 5076
+    thompson_skin_7: 5077
+    thompson_skin_8: 5078
+    thompson_skin_9: 5079
+    thompson_skin_10: 5080
+    thompson_skin_11: 5081
+    thompson_skin_12: 5082
 
 # Ancien bloc bandage (toujours lu pour compat : soins « moyen » par défaut)
 bandage:
@@ -138,9 +306,44 @@ consumables:
     duration-seconds: 120
     custom-model-data: 3013
 
+# Station de soin FPS : bloc ancre + /dpmr medkit create (fichier medkit-stations.yml)
+medkit-station:
+  enabled: true
+  anchor-material: RED_GLAZED_TERRACOTTA
+  pickup-radius: 1.12
+  cooldown-seconds: 22
+  heal-half-hearts: 8
+  display-height: 0.82
+  display-scale: 0.5
+  spin-speed: 0.12
+
+# Zones de capture monnaie : /dpmr capturezone create <id> [rayon] (fichier capture-money-zones.yml)
+capture-money-zones:
+  enabled: true
+  tick-interval-ticks: 20
+  points-per-tick: 1
+  default-radius: 5
+  hologram-y-offset: 2.6
+
 radar:
   custom-model-data: 4001
   scan-radius: 90
+
+# Lunettes de scan (longue-vue DPMR) : clic droit, glow violet pour le porteur (contour via scoreboard)
+# scan-radius <= 0 : tous les joueurs du même monde ; sinon distance max en blocs (min 8 si > 0)
+wall-vision-goggles:
+  custom-model-data: 4002
+  scan-radius: 0
+  effect-ticks: 300
+  cooldown-seconds: 20
+
+# Lunettes infrarouges : même principe que le scan, contour rouge (scoreboard Team.RED)
+# scan-radius <= 0 : tous les joueurs du même monde
+infrared-goggles:
+  custom-model-data: 4003
+  scan-radius: 0
+  effect-ticks: 300
+  cooldown-seconds: 20
 
 # Launchpads (blocs slime DPMR) — plafond de vitesse pour eviter kick vanilla
 launchpads:
@@ -262,7 +465,9 @@ loot:
     - "NOVA"
     - "PULSE"
     - "UC_EPEE_BOIS"
+    - "COUTEAU_COMBAT"
     - "BOMB_ORB"
+    - "CLIO3"
     - "DEAGLE_RL"
     - "FUSIL_POMPE_CROIX"
     - "LANCE_MARRONS"
@@ -270,6 +475,8 @@ loot:
     - "RZ_COEUR_MER"
     - "SERUM_SOIN"
     - "LANCE_SOIN"
+    - "LE_MORTIER"
+    - "LANCE_ROQUETTE"
     - "DRAGUNOV_SVD"
     - "EP_DRAGON"
     - "EP_GRIMOIRE"
@@ -283,6 +490,7 @@ loot:
     - "LG_TOTEM"
     - "LG_WITHER"
     - "AWP"
+    - "LG_TRAQUEUR"
     - "LG_REVOLVER_FLAMME"
     - "LG_POMPE_DOUBLE"
     - "DIVISER_POUR_MIEUX_REGNER"
@@ -295,6 +503,7 @@ loot:
     - "LG_TETE_DRAGON"
   legendary-weapons:
     - "AWP"
+    - "LG_TRAQUEUR"
     - "LG_REVOLVER_FLAMME"
     - "LG_POMPE_DOUBLE"
     - "DIVISER_POUR_MIEUX_REGNER"
@@ -332,8 +541,11 @@ boosts:
     - "SPEED"
 
 zones:
+  # Plusieurs safe / war : remplir "regions" (liste de spheres / cuboids / polygons). /dpmr zone <safe|war> set... ajoute une entrée.
+  # Tant que "regions" est vide, le bloc world/x/y/z (ou min/max, points) ci-dessous sert de zone unique (compat ancienne config).
   safe:
     enabled: false
+    regions: []
     world: "world"
     x: 0
     y: 80
@@ -342,6 +554,7 @@ zones:
   # Si enabled=true: les armes/familiers ne marchent que DANS la war zone (et jamais dans safe).
   war:
     enabled: false
+    regions: []
     world: "world"
     x: 0
     y: 80
@@ -379,6 +592,22 @@ npc-war-world:
     gold-max: 3
     despawn-ticks: 5200
     # Si require-war-zone: false (war désactivée) : spawn autour du spawn du monde, hors safe
+    fallback-world: "world"
+    fallback-spread: 80
+  # Sentinelles rares en zone war : pistolets (kind PATROL), dégâts réduits, Points à l'élimination
+  rare-shooter:
+    enabled: true
+    interval-ticks: 10800
+    attempt-chance: 0.07
+    max-active: 2
+    require-war-zone: true
+    surface-attempts: 52
+    kind: "PATROL"
+    reward-points: 5
+    gold-min: 1
+    gold-max: 2
+    despawn-ticks: 4800
+    shot-damage-scale: 0.52
     fallback-world: "world"
     fallback-spread: 80
   helicopter:
@@ -458,6 +687,120 @@ resource-pack:
   kick-on-failed-download: false
   # Message affiché au joueur
   prompt: "Pack DPMR requis (armes 3D + sons)."
+
+# Evolving kits — English messages. Playtime = minutes online (see track-interval-seconds).
+# Player kit: highest tier with min-minutes <= your total playtime.
+# Grade kit: first rank in grade-kit.ranks you have permission for (list is best → worst; use fallback: true for everyone else).
+evolving-kits:
+  enabled: true
+  track-interval-seconds: 60
+  player-kit:
+    cooldown-hours: 6
+    tiers:
+      - min-minutes: 0
+        label: "Rookie"
+        items:
+          - type: consumable
+            id: bandage-small
+            amount: 6
+          - type: consumable
+            id: shield-potion-small
+            amount: 1
+          - type: points
+            amount: 10
+      - min-minutes: 60
+        label: "Regular"
+        items:
+          - type: consumable
+            id: bandage-medium
+            amount: 8
+          - type: consumable
+            id: medikit
+            amount: 1
+          - type: consumable
+            id: shield-potion-medium
+            amount: 2
+          - type: points
+            amount: 25
+      - min-minutes: 300
+        label: "Veteran"
+        items:
+          - type: consumable
+            id: bandage-large
+            amount: 8
+          - type: consumable
+            id: medikit
+            amount: 2
+          - type: consumable
+            id: shield-potion-large
+            amount: 2
+          - type: weapon
+            id: GLOCK18
+            amount: 1
+          - type: points
+            amount: 60
+      - min-minutes: 1200
+        label: "Committed"
+        items:
+          - type: consumable
+            id: bandage-large
+            amount: 12
+          - type: consumable
+            id: medikit
+            amount: 3
+          - type: consumable
+            id: shield-potion-large
+            amount: 3
+          - type: weapon
+            id: AK47
+            amount: 1
+          - type: material
+            material: GOLDEN_APPLE
+            amount: 2
+          - type: points
+            amount: 120
+  grade-kit:
+    cooldown-hours: 12
+    ranks:
+      - permission: dpmr.kit.grade.elite
+        label: "Elite"
+        items:
+          - type: consumable
+            id: medikit
+            amount: 4
+          - type: consumable
+            id: shield-potion-large
+            amount: 4
+          - type: weapon
+            id: CARABINE_MK18
+            amount: 1
+          - type: points
+            amount: 150
+      - permission: dpmr.kit.grade.vip
+        label: "VIP"
+        items:
+          - type: consumable
+            id: medikit
+            amount: 2
+          - type: consumable
+            id: shield-potion-medium
+            amount: 3
+          - type: weapon
+            id: NOVA
+            amount: 1
+          - type: points
+            amount: 75
+      - fallback: true
+        label: "Member"
+        items:
+          - type: consumable
+            id: bandage-medium
+            amount: 6
+          - type: consumable
+            id: shield-potion-small
+            amount: 2
+          - type: points
+            amount: 30
 
 safe-respawn:
   enabled: true

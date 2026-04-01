@@ -94,6 +94,40 @@ public class CosmeticsManager {
         return yaml.getString(base(uuid) + ".selected.parachute", "");
     }
 
+    /** Skin couteau equipe (COUTEAU_COMBAT) ; null si aucun ou pas possede. */
+    public CosmeticProfile selectedKnifeProfile(UUID uuid) {
+        CosmeticProfile p = CosmeticProfile.fromId(yaml.getString(base(uuid) + ".selected.knife", ""));
+        return p != null && p.type() == CosmeticType.KNIFE_SKIN && isOwned(uuid, p) ? p : null;
+    }
+
+    /**
+     * Skin d'arme selectionne pour une base {@link fr.dpmr.game.WeaponProfile} (ex. THOMPSON) ;
+     * null = apparence de base (pas de NBT cosmétique).
+     */
+    public CosmeticProfile selectedWeaponSkin(UUID uuid, String weaponProfileName) {
+        if (weaponProfileName == null || weaponProfileName.isBlank()) {
+            return null;
+        }
+        String id = yaml.getString(base(uuid) + ".selected.weapon-skin." + weaponProfileName, "");
+        CosmeticProfile p = CosmeticProfile.fromId(id);
+        if (p == null || p.type() != CosmeticType.WEAPON_SKIN) {
+            return null;
+        }
+        if (p.weaponSkinFor() == null || !p.weaponSkinFor().equalsIgnoreCase(weaponProfileName)) {
+            return null;
+        }
+        return isOwned(uuid, p) ? p : null;
+    }
+
+    /** Retire le skin equipe pour cette arme (retour apparence de base). */
+    public void clearWeaponSkinSelection(UUID uuid, String weaponProfileName) {
+        if (weaponProfileName == null || weaponProfileName.isBlank()) {
+            return;
+        }
+        yaml.set(base(uuid) + ".selected.weapon-skin." + weaponProfileName, null);
+        save();
+    }
+
     public void setSelected(UUID uuid, CosmeticProfile profile) {
         if (profile == null) {
             return;
@@ -106,6 +140,9 @@ public class CosmeticsManager {
             case AURA -> base(uuid) + ".selected.aura";
             case PARACHUTE -> base(uuid) + ".selected.parachute";
             case VANITY -> base(uuid) + ".selected.vanity";
+            case KNIFE_SKIN -> base(uuid) + ".selected.knife";
+            case WEAPON_SKIN -> base(uuid) + ".selected.weapon-skin." + profile.weaponSkinFor();
+            default -> throw new IllegalStateException("Unhandled cosmetic type: " + profile.type());
         };
         yaml.set(path, profile.id());
         save();

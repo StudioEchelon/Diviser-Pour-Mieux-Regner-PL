@@ -1,0 +1,21 @@
+{
+  "parent": "minecraft:item/handheld",
+  "textures": {
+    "layer0": "minecraft:item/spyglass"
+  },
+  "overrides": [
+    { "predicate": { "custom_model_data": 5070 }, "model": "dpmr:item/thompson" },
+    { "predicate": { "custom_model_data": 5071 }, "model": "dpmr:item/thompson_skin_1" },
+    { "predicate": { "custom_model_data": 5072 }, "model": "dpmr:item/thompson_skin_2" },
+    { "predicate": { "custom_model_data": 5073 }, "model": "dpmr:item/thompson_skin_3" },
+    { "predicate": { "custom_model_data": 5074 }, "model": "dpmr:item/thompson_skin_4" },
+    { "predicate": { "custom_model_data": 5075 }, "model": "dpmr:item/thompson_skin_5" },
+    { "predicate": { "custom_model_data": 5076 }, "model": "dpmr:item/thompson_skin_6" },
+    { "predicate": { "custom_model_data": 5077 }, "model": "dpmr:item/thompson_skin_7" },
+    { "predicate": { "custom_model_data": 5078 }, "model": "dpmr:item/thompson_skin_8" },
+    { "predicate": { "custom_model_data": 5079 }, "model": "dpmr:item/thompson_skin_9" },
+    { "predicate": { "custom_model_data": 5080 }, "model": "dpmr:item/thompson_skin_10" },
+    { "predicate": { "custom_model_data": 5081 }, "model": "dpmr:item/thompson_skin_11" },
+    { "predicate": { "custom_model_data": 5082 }, "model": "dpmr:item/thompson_skin_12" }
+  ]
+}
