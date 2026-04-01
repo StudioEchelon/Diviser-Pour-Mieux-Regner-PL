@@ -1,0 +1,9 @@
+{
+  "parent": "minecraft:block/dispenser",
+  "overrides": [
+    {
+      "predicate": { "custom_model_data": 5054 },
+      "model": "dpmr:item/clio3"
+    }
+  ]
+}

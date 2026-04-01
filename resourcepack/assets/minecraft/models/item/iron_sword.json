@@ -1,0 +1,13 @@
+{
+  "parent": "minecraft:item/handheld",
+  "textures": {
+    "layer0": "minecraft:item/iron_sword"
+  },
+  "overrides": [
+    { "predicate": { "custom_model_data": 5058 }, "model": "dpmr:item/knife_combat" },
+    { "predicate": { "custom_model_data": 5059 }, "model": "dpmr:item/knife_karambit" },
+    { "predicate": { "custom_model_data": 5060 }, "model": "dpmr:item/knife_butterfly" },
+    { "predicate": { "custom_model_data": 5061 }, "model": "dpmr:item/knife_m9_bayonet" },
+    { "predicate": { "custom_model_data": 5062 }, "model": "dpmr:item/knife_flip" }
+  ]
+}

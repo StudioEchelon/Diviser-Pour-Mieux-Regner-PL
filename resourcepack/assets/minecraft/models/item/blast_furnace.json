@@ -1,0 +1,9 @@
+{
+  "parent": "minecraft:block/blast_furnace",
+  "overrides": [
+    {
+      "predicate": { "custom_model_data": 5056 },
+      "model": "dpmr:item/mortier"
+    }
+  ]
+}
