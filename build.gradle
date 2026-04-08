@@ -38,6 +38,11 @@ tasks.register('embedDpmrResourcePack', Copy) {
     into(generatedPackResources)
     rename { 'dpmr-pack.zip' }
     onlyIf { distPackZip.asFile.exists() }
+    doFirst {
+        if (!distPackZip.asFile.exists()) {
+            logger.warn('dist/dpmr-pack.zip introuvable — le jar n\'embarquera pas le pack. Lance: bash scripts/build-resourcepack.sh')
+        }
+    }
 }
 
 sourceSets.main.resources.srcDir(generatedPackResources)

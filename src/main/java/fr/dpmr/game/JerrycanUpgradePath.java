@@ -8,9 +8,9 @@ import java.util.Locale;
  * Voies exclusives du J-20 (jerrican) — atelier d'armement.
  */
 public enum JerrycanUpgradePath {
-    THERMAL("THERM", "Expansion thermique", "Rayon, brulure, portee de lancer, propagation, enfer blanc"),
-    VISCOUS("VISQ", "Persistance visqueuse", "Ralentissement, duree de feu, cumuls, etreinte noire"),
-    BREACH("BREACH", "Tactique de breche", "Cadence, impact, capacite, fumee, pluie de combustible");
+    THERMAL("THERM", "Thermal expansion", "Radius, burn, throw range, spread, white-hot finale"),
+    VISCOUS("VISQ", "Viscous persistence", "Slows, burn duration, stacks, black grasp"),
+    BREACH("BREACH", "Breacher tactics", "Fire rate, impact, capacity, smoke, fuel rain");
 
     private final String shortLabel;
     private final String styleName;

@@ -30,7 +30,16 @@ public class CosmeticsManager {
         this.file = new File(plugin.getDataFolder(), "cosmetics.yml");
         this.yaml = YamlConfiguration.loadConfiguration(file);
         save();
-        Bukkit.getScheduler().runTaskTimer(plugin, this::tickAuras, 10L, 10L);
+        auraTask = Bukkit.getScheduler().runTaskTimer(plugin, this::tickAuras, 10L, 10L);
+    }
+
+    private org.bukkit.scheduler.BukkitTask auraTask;
+
+    public void stop() {
+        if (auraTask != null) {
+            auraTask.cancel();
+            auraTask = null;
+        }
     }
 
     public void save() {
@@ -39,6 +48,17 @@ public class CosmeticsManager {
         } catch (IOException e) {
             plugin.getLogger().severe("Impossible de sauvegarder cosmetics.yml: " + e.getMessage());
         }
+    }
+
+    public void saveAsync() {
+        String data = yaml.saveToString();
+        plugin.getServer().getScheduler().runTaskAsynchronously(plugin, () -> {
+            try {
+                java.nio.file.Files.writeString(file.toPath(), data, java.nio.charset.StandardCharsets.UTF_8);
+            } catch (IOException e) {
+                plugin.getLogger().severe("Impossible de sauvegarder cosmetics.yml (async): " + e.getMessage());
+            }
+        });
     }
 
     private String base(UUID uuid) {
@@ -61,7 +81,7 @@ public class CosmeticsManager {
         if (!owned.contains(profile.id())) {
             owned.add(profile.id());
             yaml.set(path, owned);
-            save();
+            saveAsync();
         }
     }
 
@@ -77,7 +97,7 @@ public class CosmeticsManager {
             return false;
         }
         pointsManager.addPoints(uuid, -profile.price());
-        pointsManager.save();
+        pointsManager.saveAsync();
         grant(uuid, profile);
         return true;
     }
@@ -125,7 +145,7 @@ public class CosmeticsManager {
             return;
         }
         yaml.set(base(uuid) + ".selected.weapon-skin." + weaponProfileName, null);
-        save();
+        saveAsync();
     }
 
     public void setSelected(UUID uuid, CosmeticProfile profile) {
@@ -145,7 +165,7 @@ public class CosmeticsManager {
             default -> throw new IllegalStateException("Unhandled cosmetic type: " + profile.type());
         };
         yaml.set(path, profile.id());
-        save();
+        saveAsync();
     }
 
     public Particle shotParticle(UUID uuid) {

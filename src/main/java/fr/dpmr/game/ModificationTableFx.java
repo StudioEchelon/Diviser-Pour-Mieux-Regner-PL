@@ -134,6 +134,67 @@ public final class ModificationTableFx {
         player.playSound(c, Sound.ITEM_BUCKET_FILL_LAVA, 0.35f, 1.15f);
     }
 
+    public static void playMortarUpgradeSuccess(Player player, MortarUpgradePath path) {
+        Location c = player.getLocation().add(0, 1.0, 0);
+        World w = c.getWorld();
+        w.spawnParticle(Particle.SMOKE, c, 35, 0.45, 0.3, 0.45, 0.04);
+        w.spawnParticle(Particle.CAMPFIRE_COSY_SMOKE, c, 22, 0.4, 0.25, 0.4, 0.02);
+        switch (path) {
+            case INCENDIARY -> {
+                w.spawnParticle(Particle.FLAME, c, 40, 0.5, 0.35, 0.5, 0.04);
+                ringHorizontal(w, c, Particle.SMALL_FLAME, 12, 0.85);
+            }
+            case BARRAGE -> w.spawnParticle(Particle.FIREWORK, c, 48, 0.55, 0.4, 0.55, 0.1);
+            case ACID -> {
+                w.spawnParticle(Particle.DRIPPING_DRIPSTONE_LAVA, c, 32, 0.45, 0.3, 0.45, 0.03);
+                w.spawnParticle(Particle.ENTITY_EFFECT, c, 24, 0.4, 0.25, 0.4, 0.06);
+            }
+        }
+        player.playSound(c, Sound.ENTITY_PLAYER_LEVELUP, 0.5f, 1.25f);
+        player.playSound(c, Sound.BLOCK_ANVIL_USE, 0.35f, 1.15f);
+        player.playSound(c, Sound.ENTITY_FIREWORK_ROCKET_BLAST, 0.28f, 1.35f);
+    }
+
+    public static void playRevolverUpgradeSuccess(Player player, int tier) {
+        Location c = player.getLocation().add(0, 1.0, 0);
+        World w = c.getWorld();
+        w.spawnParticle(Particle.SMOKE, c, 22, 0.38, 0.26, 0.38, 0.03);
+        w.spawnParticle(Particle.CRIT, c, 18, 0.35, 0.22, 0.35, 0.06);
+        if (tier >= 2) {
+            w.spawnParticle(Particle.LAVA, c, 12, 0.32, 0.2, 0.32, 0.02);
+            w.spawnParticle(Particle.EXPLOSION, c, 1, 0.06, 0.06, 0.06, 0);
+        }
+        if (tier >= 3) {
+            w.spawnParticle(Particle.END_ROD, c, 24, 0.42, 0.3, 0.42, 0.04);
+        }
+        player.playSound(c, Sound.ENTITY_PLAYER_LEVELUP, 0.5f, 1.15f + tier * 0.06f);
+        player.playSound(c, Sound.ENTITY_IRON_GOLEM_ATTACK, 0.35f, 1.25f);
+    }
+
+    public static void playRocketUpgradeSuccess(Player player, RocketUpgradePath path) {
+        Location c = player.getLocation().add(0, 1.0, 0);
+        World w = c.getWorld();
+        w.spawnParticle(Particle.SMOKE, c, 28, 0.4, 0.28, 0.4, 0.035);
+        w.spawnParticle(Particle.END_ROD, c, 22, 0.38, 0.25, 0.38, 0.04);
+        switch (path) {
+            case GUIDED -> {
+                w.spawnParticle(Particle.FIREWORK, c, 32, 0.45, 0.32, 0.45, 0.06);
+                ringHorizontal(w, c, Particle.GLOW, 10, 0.72);
+            }
+            case DEVASTATOR -> {
+                w.spawnParticle(Particle.LAVA, c, 28, 0.42, 0.3, 0.42, 0.04);
+                w.spawnParticle(Particle.EXPLOSION, c, 1, 0.08, 0.08, 0.08, 0);
+            }
+            case DRONE -> {
+                w.spawnParticle(Particle.CRIT, c, 36, 0.48, 0.35, 0.48, 0.08);
+                w.spawnParticle(Particle.SMALL_FLAME, c, 18, 0.35, 0.22, 0.35, 0.02);
+            }
+        }
+        player.playSound(c, Sound.ENTITY_PLAYER_LEVELUP, 0.48f, 1.28f);
+        player.playSound(c, Sound.ITEM_CROSSBOW_LOADING_END, 0.4f, 1.18f);
+        player.playSound(c, Sound.ENTITY_FIREWORK_ROCKET_LAUNCH, 0.32f, 1.22f);
+    }
+
     public static void playBombUpgradeSuccess(Player player, BombUpgradePath path) {
         Location c = player.getLocation().add(0, 1.0, 0);
         World w = c.getWorld();

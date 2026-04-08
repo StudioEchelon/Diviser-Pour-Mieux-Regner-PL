@@ -7,6 +7,7 @@ import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.player.PlayerJoinEvent;
+import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.event.player.PlayerResourcePackStatusEvent;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.scheduler.BukkitTask;
@@ -49,7 +50,10 @@ public class ResourcePackManager implements Listener {
         this.plugin = plugin;
     }
 
-    /** Appele depuis onEnable apres load de la config. */
+    /**
+     * Extraction du zip + SHA-1 du fichier complet + bind HTTP : travail lourd déplacé hors du thread principal
+     * pour ne pas bloquer le démarrage du serveur (pack volumineux = plusieurs secondes en synchrone).
+     */
     public void startLocalPackServerIfConfigured() {
         stopLocalPackServer();
         String source = plugin.getConfig().getString("resource-pack.source", "external");
@@ -59,22 +63,37 @@ public class ResourcePackManager implements Listener {
             return;
         }
         File zip = new File(plugin.getDataFolder(), plugin.getConfig().getString("resource-pack.local.file", "resource-pack/dpmr-pack.zip"));
-        if (bundled) {
-            if (!extractBundledPackTo(zip)) {
-                return;
-            }
-        } else if (!zip.isFile()) {
+        if (!bundled && !zip.isFile()) {
             plugin.getLogger().warning("Resource pack mode local: place le fichier zip ici → " + zip.getAbsolutePath());
             return;
         }
         int port = Math.max(1, Math.min(65535, plugin.getConfig().getInt("resource-pack.local.http-port", 8163)));
         String bind = plugin.getConfig().getString("resource-pack.local.bind-address", "0.0.0.0");
-        String path = plugin.getConfig().getString("resource-pack.local.http-path", "/dpmr-pack.zip");
-        if (!path.startsWith("/")) {
-            path = "/" + path;
-        }
+        String pathRaw = plugin.getConfig().getString("resource-pack.local.http-path", "/dpmr-pack.zip");
+        final String path = pathRaw.startsWith("/") ? pathRaw : "/" + pathRaw;
+        plugin.getLogger().info("Resource pack local: preparation (extraction/SHA-1) en arriere-plan…");
+        plugin.getServer().getScheduler().runTaskAsynchronously(plugin, () -> {
+            try {
+                if (bundled && !extractBundledPackTo(zip)) {
+                    return;
+                }
+                if (!zip.isFile()) {
+                    plugin.getServer().getScheduler().runTask(plugin, () -> plugin.getLogger().warning(
+                            "Resource pack: fichier zip introuvable apres extraction → " + zip.getAbsolutePath()));
+                    return;
+                }
+                String sha1 = LocalResourcePackHttpHost.sha1HexOfFile(zip);
+                plugin.getServer().getScheduler().runTask(plugin, () -> startLocalHttpHostOnMainThread(zip, bind, port, path, sha1));
+            } catch (IOException e) {
+                plugin.getServer().getScheduler().runTask(plugin, () ->
+                        plugin.getLogger().severe("Resource pack local: echec preparation (SHA-1 / fichier) — " + e.getMessage()));
+            }
+        });
+    }
+
+    private void startLocalHttpHostOnMainThread(File zip, String bind, int port, String path, String sha1) {
         try {
-            localHost = new LocalResourcePackHttpHost(zip, bind, port, path);
+            localHost = new LocalResourcePackHttpHost(zip, bind, port, path, sha1);
             localHost.start();
             plugin.getLogger().info("Resource pack local: HTTP " + bind + ":" + port + path + " (SHA1=" + localHost.getSha1Hex() + ")");
         } catch (IOException e) {
@@ -327,55 +346,65 @@ public class ResourcePackManager implements Listener {
         sender.sendMessage(Component.text("resource-pack.source: " + src, NamedTextColor.GRAY));
         if (manifestWanted()) {
             String murl = cfg.getString("resource-pack.manifest.url", "");
-            sender.sendMessage(Component.text("manifest.url: " + (murl == null || murl.isBlank() ? "(vide)" : murl), NamedTextColor.GRAY));
+            sender.sendMessage(Component.text("manifest.url: " + (murl == null || murl.isBlank() ? "(empty)" : murl), NamedTextColor.GRAY));
             String resolved = manifestResolvedUrl;
-            sender.sendMessage(Component.text("manifest → url resolue: " + (resolved == null || resolved.isBlank() ? "(pas encore chargee)" : resolved),
+            sender.sendMessage(Component.text("manifest → resolved URL: " + (resolved == null || resolved.isBlank() ? "(not loaded yet)" : resolved),
                     resolved == null || resolved.isBlank() ? NamedTextColor.RED : NamedTextColor.GREEN));
             String rsha = manifestResolvedSha1;
             boolean shaOk = rsha != null && rsha.length() == 40;
-            sender.sendMessage(Component.text("manifest → sha1: " + (shaOk ? rsha : "(absent ou invalide — client peut mal mettre a jour)"),
+            sender.sendMessage(Component.text("manifest → sha1: " + (shaOk ? rsha : "(missing or invalid — client may not update)"),
                     shaOk ? NamedTextColor.GREEN : NamedTextColor.YELLOW));
             if (manifestLastError != null && !manifestLastError.isBlank()) {
-                sender.sendMessage(Component.text("derniere erreur manifest: " + manifestLastError, NamedTextColor.RED));
+                sender.sendMessage(Component.text("Last manifest error: " + manifestLastError, NamedTextColor.RED));
             }
         }
         if ("local".equalsIgnoreCase(src) || "bundled".equalsIgnoreCase(src)) {
             File zip = new File(plugin.getDataFolder(), cfg.getString("resource-pack.local.file", "resource-pack/dpmr-pack.zip"));
             boolean okFile = zip.isFile();
-            sender.sendMessage(Component.text("Fichier sur disque: " + zip.getAbsolutePath(), NamedTextColor.GRAY));
-            sender.sendMessage(Component.text("  existe: " + okFile + (okFile ? " (" + zip.length() + " o)" : ""), okFile ? NamedTextColor.GREEN : NamedTextColor.RED));
+            sender.sendMessage(Component.text("File on disk: " + zip.getAbsolutePath(), NamedTextColor.GRAY));
+            sender.sendMessage(Component.text("  exists: " + okFile + (okFile ? " (" + zip.length() + " bytes)" : ""), okFile ? NamedTextColor.GREEN : NamedTextColor.RED));
             if ("bundled".equalsIgnoreCase(src)) {
-                sender.sendMessage(Component.text("  (bundled = copie du zip inclus dans le .jar a chaque demarrage)", NamedTextColor.DARK_GRAY));
+                sender.sendMessage(Component.text("  (bundled = zip copied from jar on each start)", NamedTextColor.DARK_GRAY));
             }
             boolean httpOk = localHost != null && localHost.isRunning();
-            sender.sendMessage(Component.text("Serveur HTTP integre actif: " + httpOk, httpOk ? NamedTextColor.GREEN : NamedTextColor.RED));
+            sender.sendMessage(Component.text("Built-in HTTP server running: " + httpOk, httpOk ? NamedTextColor.GREEN : NamedTextColor.RED));
             if (httpOk) {
-                sender.sendMessage(Component.text("SHA1 envoye au client: " + localHost.getSha1Hex(), NamedTextColor.AQUA));
+                sender.sendMessage(Component.text("SHA1 sent to client: " + localHost.getSha1Hex(), NamedTextColor.AQUA));
             }
             String eff = effectivePublicPackUrl();
-            sender.sendMessage(Component.text("URL effective joueurs: " + (eff.isBlank() ? "(vide — remplis public-host ou public-url)" : eff),
+            sender.sendMessage(Component.text("Effective player URL: " + (eff.isBlank() ? "(empty — set public-host or public-url)" : eff),
                     eff.isBlank() ? NamedTextColor.RED : NamedTextColor.GREEN));
             String ph = cfg.getString("resource-pack.local.public-host", "");
-            sender.sendMessage(Component.text("public-host: " + (ph == null || ph.isBlank() ? "(vide)" : ph), NamedTextColor.GRAY));
+            sender.sendMessage(Component.text("public-host: " + (ph == null || ph.isBlank() ? "(empty)" : ph), NamedTextColor.GRAY));
         }
         if (!"local".equalsIgnoreCase(src) && !"bundled".equalsIgnoreCase(src)) {
             String url = effectiveExternalPackUrl();
             String sha = effectiveExternalPackSha1();
-            sender.sendMessage(Component.text("url effective (external/manifest): " + (url.isBlank() ? "(vide)" : url),
+            sender.sendMessage(Component.text("Effective URL (external/manifest): " + (url.isBlank() ? "(empty)" : url),
                     url.isBlank() ? NamedTextColor.RED : NamedTextColor.GRAY));
             boolean shaOk = sha != null && sha.trim().length() == 40;
-            sender.sendMessage(Component.text("sha1 (40 hex): " + (shaOk ? sha : "non / manquant"), shaOk ? NamedTextColor.GREEN : NamedTextColor.RED));
+            sender.sendMessage(Component.text("sha1 (40 hex): " + (shaOk ? sha : "missing / invalid"), shaOk ? NamedTextColor.GREEN : NamedTextColor.RED));
         }
         int cm = cfg.getInt("weapons.custom-model-data.CM_SHOTGUN", 0);
         int ep = cfg.getInt("weapons.custom-model-data.EP_FUSIL_POMPE", 0);
         boolean cmdOk = cm > 0 && ep > 0;
-        sender.sendMessage(Component.text("Exemples CustomModelData — CM_SHOTGUN=" + cm + " EP_FUSIL_POMPE=" + ep,
+        sender.sendMessage(Component.text("CustomModelData examples — CM_SHOTGUN=" + cm + " EP_FUSIL_POMPE=" + ep,
                 cmdOk ? NamedTextColor.GREEN : NamedTextColor.RED));
-        if (!cmdOk) {
-            sender.sendMessage(Component.text("Si CMD = 0, les items restent vanilla meme avec un bon pack. Redemarre apres MAJ du .jar (fusion auto config) ou copie les cles depuis le jar.", NamedTextColor.YELLOW));
+        int th = cfg.getInt("weapons.custom-model-data.THOMPSON", 0);
+        int ts1 = cfg.getInt("cosmetics.weapon-skins.thompson_skin_1", 0);
+        sender.sendMessage(Component.text("Thompson — weapons.custom-model-data.THOMPSON=" + th
+                        + " | cosmetics.weapon-skins.thompson_skin_1=" + ts1
+                        + " (vanilla item: carrot_on_a_stick, modele: carrot_on_a_stick.json)",
+                th > 0 ? NamedTextColor.GREEN : NamedTextColor.RED));
+        if (ts1 <= 0) {
+            sender.sendMessage(Component.text("Skin thompson_skin_1 = 0 ou absent : les variantes payantes n'auront pas le bon CMD (ajoute cosmetics.weapon-skins dans config).", NamedTextColor.YELLOW));
         }
-        sender.sendMessage(Component.text("Armes deja en main : elles n’ont pas le nouveau CMD → reprends-les (/dpmr givegun ou boutique).", NamedTextColor.YELLOW));
-        sender.sendMessage(Component.text("Forcer le pack: /ressourcepack — recharger config: /dpmr warworld reload", NamedTextColor.DARK_GRAY));
+        if (!cmdOk) {
+            sender.sendMessage(Component.text("If CMD = 0, items stay vanilla even with a good pack. Restart after jar update (auto config merge) or copy keys from the jar.", NamedTextColor.YELLOW));
+        }
+        sender.sendMessage(Component.text("Pack bundled: rebuild avec « bash scripts/build-resourcepack.sh && ./gradlew jar » pour embarquer le zip a jour.", NamedTextColor.DARK_AQUA));
+        sender.sendMessage(Component.text("Weapons already held won't get the new CMD — re-get them (/dpmr givegun or shop).", NamedTextColor.YELLOW));
+        sender.sendMessage(Component.text("Force pack: /ressourcepack — reload config: /dpmr warworld reload — diag: /dpmr resourcepack", NamedTextColor.DARK_GRAY));
     }
 
     public void sendPack(Player player) {
@@ -411,13 +440,13 @@ public class ResourcePackManager implements Listener {
         if (!plugin.getConfig().getBoolean("resource-pack.enabled", true)) {
             return;
         }
-        String prompt = plugin.getConfig().getString("resource-pack.prompt", "Pack DPMR requis.");
+        String prompt = plugin.getConfig().getString("resource-pack.prompt", "DPMR pack required.");
         String baseUrl;
         String sha1;
         String src = plugin.getConfig().getString("resource-pack.source", "external");
         if ("local".equalsIgnoreCase(src) || "bundled".equalsIgnoreCase(src)) {
             if (localHost == null || !localHost.isRunning()) {
-                player.sendMessage(Component.text("Resource pack local/bundled indisponible (fichier ou port HTTP). Voir les logs serveur.", NamedTextColor.RED));
+                player.sendMessage(Component.text("Local/bundled resource pack unavailable (file or HTTP port). Check server logs.", NamedTextColor.RED));
                 return;
             }
             baseUrl = effectivePublicPackUrl();
@@ -436,9 +465,9 @@ public class ResourcePackManager implements Listener {
                     return;
                 }
                 if (manifestWanted()) {
-                    player.sendMessage(Component.text("Manifest: URL du zip introuvable (JSON non charge ou erreur reseau). Logs serveur + /dpmr resourcepack", NamedTextColor.RED));
+                    player.sendMessage(Component.text("Manifest: zip URL not found (JSON not loaded or network error). Server logs + /dpmr resourcepack", NamedTextColor.RED));
                 } else {
-                    player.sendMessage(Component.text("resource-pack.url vide. Mets source: manifest + manifest.url GitHub, ou source: external + url + sha1.", NamedTextColor.RED));
+                    player.sendMessage(Component.text("resource-pack.url empty. Set source: manifest + manifest.url, or source: external + url + sha1.", NamedTextColor.RED));
                 }
                 return;
             }
@@ -451,12 +480,19 @@ public class ResourcePackManager implements Listener {
             player.setResourcePack(url);
         }
         strictRequest.put(player.getUniqueId(), strict);
-        player.sendActionBar(Component.text("Telechargement du resource pack...", NamedTextColor.GOLD));
+        player.sendActionBar(Component.text("Downloading resource pack...", NamedTextColor.GOLD));
         if (strict) {
             scheduleKickIfStillMissing(player);
         } else {
             cancelPendingKick(player.getUniqueId());
         }
+    }
+
+    @EventHandler
+    public void onQuit(PlayerQuitEvent event) {
+        UUID uuid = event.getPlayer().getUniqueId();
+        cancelPendingKick(uuid);
+        strictRequest.remove(uuid);
     }
 
     @EventHandler
@@ -475,22 +511,22 @@ public class ResourcePackManager implements Listener {
             case SUCCESSFULLY_LOADED -> {
                 cancelPendingKick(p.getUniqueId());
                 strictRequest.remove(p.getUniqueId());
-                p.sendActionBar(Component.text("Resource pack charge.", NamedTextColor.GREEN));
+                p.sendActionBar(Component.text("Resource pack loaded.", NamedTextColor.GREEN));
             }
             case DECLINED -> {
-                p.sendMessage(Component.text("Le resource pack est requis.", NamedTextColor.RED));
+                p.sendMessage(Component.text("The resource pack is required.", NamedTextColor.RED));
                 if (force && strict) {
                     kickNow(p);
                 }
             }
             case FAILED_DOWNLOAD -> {
-                p.sendMessage(Component.text("Echec de telechargement du pack. Reessaye /ressourcepack.", NamedTextColor.RED));
+                p.sendMessage(Component.text("Pack download failed. Try /ressourcepack again.", NamedTextColor.RED));
                 // On ne kick pas instant: réseau lent/CDN, laisse le temps.
                 if (force && kickOnFailedDownload && strict) {
                     scheduleKickIfStillMissing(p);
                 }
             }
-            case ACCEPTED -> p.sendActionBar(Component.text("Resource pack accepte...", NamedTextColor.YELLOW));
+            case ACCEPTED -> p.sendActionBar(Component.text("Resource pack accepted...", NamedTextColor.YELLOW));
             default -> {
             }
         }
@@ -504,7 +540,7 @@ public class ResourcePackManager implements Listener {
         long delay = Math.max(40L, plugin.getConfig().getLong("resource-pack.kick-delay-ticks", 20L * 45L));
         BukkitTask task = plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
             if (player.isOnline()) {
-                player.kick(Component.text("Resource pack requis pour jouer sur ce serveur."));
+                player.kick(Component.text("Resource pack required to play on this server."));
             }
         }, delay);
         pendingKick.put(player.getUniqueId(), task);

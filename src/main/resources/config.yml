@@ -14,6 +14,21 @@ bounty:
   reward-points: 50
   min-players-online: 1
 
+# Periodic clear-lag: removes ground items, experience orbs, end crystals, stray projectiles (not fishing hooks),
+# armor stands / item displays without DPMR tags, optional villagers. Chat message is English.
+clear-lag:
+  enabled: true
+  interval-minutes: 10
+  message: "Clear lag: %count% entities were removed (drops, projectiles, crystals, stray stands, etc.)."
+  remove-dropped-items: true
+  remove-experience-orbs: true
+  remove-end-crystals: true
+  remove-projectiles: true
+  remove-stray-armor-stands: true
+  remove-stray-item-displays: true
+  remove-villagers: false
+  remove-wandering-traders: false
+
 # Shoot these blocks with a DPMR weapon (hitscan or projectile) for a temporary buff. Chat messages are in English.
 # Optional hologram orbs (ItemDisplay): /dpmr powerup add <kind> [wall|float] — saved in plugins/DPMR/powerup-markers.yml
 bonus-powerup-blocks:
@@ -73,6 +88,9 @@ daily-quests:
   enabled: true
   # Points per completed track (up to 3 rewards per day)
   reward-points: 50
+  # Bonus one-shot when all tracks of the day are claimed (0 = disabled)
+  bonus-all-complete: 0
+  # Optional: daily-quests.reward-points-by-type.KILL_PLAYERS: 60  (falls back to reward-points)
   slot-count: 3
   # IANA timezone for the calendar day (empty = JVM default)
   timezone: ""
@@ -184,11 +202,18 @@ boutique:
   sell-prices: {}
 
 weapons:
+  # Jauge + coffre 3 choix (Archero / diep.io) sur les armes rayonnées (voir WeaponProfile.supportsKillPerkMeter).
+  kill-perks:
+    enabled: true
+    meter-player-kill: 28
+    meter-mob-kill: 6
   nuclear-charge-ticks: 400
   nuclear-radius: 14.0
   nuclear-damage: 48.0
   # CustomModelData : cle = nom exact WeaponProfile (Java). 0 = pas de modele pack sur l’item.
   # Doit correspondre aux overrides du resource pack (stick, golden_hoe, etc.).
+  # Thompson : item vanilla = CARROT_ON_A_STICK ; textures dans pack → minecraft/models/item/carrot_on_a_stick.json
+  # Skins : cosmetics.weapon-skins.thompson_skin_N + NBT dpmr:weapon_cosmetic sur l’item. Pack a jour : build-resourcepack.sh + gradle jar.
   custom-model-data:
     AK47: 5025
     AWP: 5047
@@ -256,7 +281,7 @@ cosmetics:
     knife_butterfly: 5060
     knife_m9_bayonet: 5061
     knife_flip: 5062
-  # Skins Thompson (cles = id CosmeticProfile WEAPON_SKIN, CustomModelData spyglass.json)
+  # Skins Thompson (cles = id CosmeticProfile WEAPON_SKIN, overrides carrot_on_a_stick.json)
   weapon-skins:
     thompson_skin_1: 5071
     thompson_skin_2: 5072
@@ -405,8 +430,23 @@ loot:
       medikit-per-stack-max: 2
       include-lance-soin: true
       include-serum-soin: true
+  # Coffre suspendu a des ballons (BlockDisplay) : spawn rare pendant le mode apocalypse (meme boucle que loot).
+  balloon-chest:
+    enabled: true
+    # Toutes les X secondes on tente un spawn (si chance OK et max-active non atteint).
+    check-interval-seconds: 420
+    # Probabilite a chaque check (0..1) — rester bas pour du "rare".
+    spawn-chance-per-check: 0.16
+    max-active: 3
+    height-above-ground: 24
+    # Tier de coffre pour le tirage loot (TIER_1, TIER_2, TIER_3, …)
+    loot-tier: TIER_2
+    # Si true : seuls les projectiles d'armes DPMR (balles tagguees) detruisent le coffre.
+    dpmr-projectiles-only: true
+    # Message a tous les joueurs quand un coffre ballon apparait (optionnel).
+    broadcast-on-spawn: false
   configured-chest-respawn-seconds: 120
-  # Poids des raretés (total plus lourd sur COMMON)
+  # Poids des raretés (chemins internes / fallback) — GHOST optionnel, tres rare
   rarity-weights:
     COMMON: 72
     UNCOMMON: 18
@@ -414,11 +454,101 @@ loot:
     EPIC: 2
     LEGENDARY: 1
     MYTHIC: 1
+    GHOST: 0
   configured-chest-rarity-weights:
     COMMON: 55
     UNCOMMON: 27
     RARE: 13
     EPIC: 5
+  # Coffres zone aléatoire : poids des 3 styles (bois / piégé / ender)
+  zone-chest-tier-weights:
+    tier-1: 50
+    tier-2: 35
+    tier-3: 15
+  # Objets par ouverture (chaque objet = un tirage armure/arme/conso + rarete). Sans GUI.
+  # Poids decroissants du plus commun au plus rare (GHOST = le plus rare, souvent 0 sur coffres bois)
+  chest-tier:
+    tier-1:
+      loot-rolls: 1
+      category-weapon-weight: 45
+      category-armor-weight: 30
+      category-consumable-weight: 25
+      rarity-weights:
+        COMMON: 100
+        UNCOMMON: 28
+        RARE: 10
+        EPIC: 4
+        LEGENDARY: 2
+        MYTHIC: 0
+        GHOST: 0
+    tier-2:
+      loot-rolls: 2
+      category-weapon-weight: 50
+      category-armor-weight: 25
+      category-consumable-weight: 25
+      rarity-weights:
+        COMMON: 55
+        UNCOMMON: 28
+        RARE: 12
+        EPIC: 4
+        LEGENDARY: 2
+        MYTHIC: 1
+        GHOST: 0
+    tier-3:
+      loot-rolls: 3
+      category-weapon-weight: 55
+      category-armor-weight: 20
+      category-consumable-weight: 25
+      rarity-weights:
+        COMMON: 30
+        UNCOMMON: 25
+        RARE: 20
+        EPIC: 12
+        LEGENDARY: 8
+        MYTHIC: 4
+        GHOST: 1
+    # Maritime Chest (barrel): place in water only; 1 roll, rarity between tier I and II
+    maritime:
+      loot-rolls: 1
+      category-weapon-weight: 48
+      category-armor-weight: 27
+      category-consumable-weight: 25
+      rarity-weights:
+        COMMON: 72
+        UNCOMMON: 26
+        RARE: 12
+        EPIC: 7
+        LEGENDARY: 3
+        MYTHIC: 0
+        GHOST: 0
+    # Maritime II (smoker, eau) : 2 rolls
+    maritime-2:
+      loot-rolls: 2
+      category-weapon-weight: 50
+      category-armor-weight: 25
+      category-consumable-weight: 25
+      rarity-weights:
+        COMMON: 55
+        UNCOMMON: 28
+        RARE: 14
+        EPIC: 8
+        LEGENDARY: 4
+        MYTHIC: 1
+        GHOST: 0
+    # Maritime III (haut fourneau, eau) : 3 rolls
+    maritime-3:
+      loot-rolls: 3
+      category-weapon-weight: 52
+      category-armor-weight: 23
+      category-consumable-weight: 25
+      rarity-weights:
+        COMMON: 38
+        UNCOMMON: 26
+        RARE: 18
+        EPIC: 12
+        LEGENDARY: 6
+        MYTHIC: 2
+        GHOST: 0
   # Coffre loot: au plus 1 arme DPMR (0 = parfois pas d'arme, 1 = toujours une arme si le pool le permet)
   chest-weapon-min: 0
   chest-weapon-max: 1
@@ -446,78 +576,11 @@ loot:
     shield-potion-small: 50
     shield-potion-medium: 35
     shield-potion-large: 15
-  # Armes DPMR (IDs en majuscules, /dpmr guns) — catalogue reduit
-  chest-weapons:
-    - "JERRYCAN"
-    - "CM_BAMBOU"
-    - "GLITCH"
-    - "GLOCK18"
-    - "REVOLVER"
-    - "CM_REVOLVER_CHATAIGNE"
-    - "CM_SHOTGUN"
-    - "CM_PEPITE"
-    - "CM_PANNEAU"
-    - "HURRICANE"
-    - "AK47"
-    - "CARABINE_MK18"
-    - "CARABINE_RARE"
-    - "FUSIL_POMPE_RL"
-    - "NOVA"
-    - "PULSE"
-    - "UC_EPEE_BOIS"
-    - "COUTEAU_COMBAT"
-    - "BOMB_ORB"
-    - "CLIO3"
-    - "DEAGLE_RL"
-    - "FUSIL_POMPE_CROIX"
-    - "LANCE_MARRONS"
-    - "RADIANT"
-    - "RZ_COEUR_MER"
-    - "SERUM_SOIN"
-    - "LANCE_SOIN"
-    - "LE_MORTIER"
-    - "LANCE_ROQUETTE"
-    - "DRAGUNOV_SVD"
-    - "EP_DRAGON"
-    - "EP_GRIMOIRE"
-    - "EP_NETH_INGOT"
-    - "EP_PHANTOM"
-    - "EP_FUSIL_POMPE"
-    - "EP_POMPE_ACIDE"
-    - "EP_REVOLVER_CYBER"
-    - "GRAPPIN_RL"
-    - "SOLAR"
-    - "LG_TOTEM"
-    - "LG_WITHER"
-    - "AWP"
-    - "LG_TRAQUEUR"
-    - "LG_REVOLVER_FLAMME"
-    - "LG_POMPE_DOUBLE"
-    - "DIVISER_POUR_MIEUX_REGNER"
-    - "INFERNO"
-    - "LG_ANCRE"
-    - "LG_BEACON"
-    - "MINIGUN_M134"
-    - "THUNDER"
-    - "LG_POMPE_DOUBLE_CYBER"
-    - "LG_TETE_DRAGON"
-  legendary-weapons:
-    - "AWP"
-    - "LG_TRAQUEUR"
-    - "LG_REVOLVER_FLAMME"
-    - "LG_POMPE_DOUBLE"
-    - "DIVISER_POUR_MIEUX_REGNER"
-    - "INFERNO"
-    - "LG_ANCRE"
-    - "LG_BEACON"
-    - "MINIGUN_M134"
-    - "THUNDER"
-    - "LG_POMPE_DOUBLE_CYBER"
-    - "LG_TETE_DRAGON"
-    - "GHOST_NUKE"
-    - "GHOST_LANCE_FLAMME"
-    - "GHOST_POMPE"
-    - "GHOST_DIVISER"
+  # Armes DPMR pour les coffres : au demarrage le plugin fusionne avec tout le catalogue (WeaponProfile).
+  # Les chances par rarete sont dans chest-tier.*.rarity-weights (plus c'est haut, plus c'est rare).
+  chest-weapons: []
+  # Pool admin (menu config) : legendaries + mythiques + ghost — complete au demarrage
+  legendary-weapons: []
   airdrop-interval-seconds: 300
   chest-spawn-interval-seconds: 180
   chest-spawn-max-active: 5

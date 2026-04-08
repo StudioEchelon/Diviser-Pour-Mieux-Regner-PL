@@ -1,7 +1,7 @@
 {
-  "parent": "minecraft:item/handheld",
+  "parent": "minecraft:item/handheld_rod",
   "textures": {
-    "layer0": "minecraft:item/spyglass"
+    "layer0": "minecraft:item/carrot_on_a_stick"
   },
   "overrides": [
     { "predicate": { "custom_model_data": 5070 }, "model": "dpmr:item/thompson" },

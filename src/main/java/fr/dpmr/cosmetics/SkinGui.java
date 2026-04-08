@@ -67,7 +67,7 @@ public class SkinGui implements Listener {
 
     private ItemStack defaultThompsonItem(Player player) {
         boolean noSkin = cosmeticsManager.selectedWeaponSkin(player.getUniqueId(), "THOMPSON") == null;
-        ItemStack i = new ItemStack(Material.SPYGLASS);
+        ItemStack i = new ItemStack(Material.CARROT_ON_A_STICK);
         ItemMeta m = i.getItemMeta();
         m.displayName(Component.text("Thompson — basique", NamedTextColor.GRAY));
         List<Component> lore = new ArrayList<>();

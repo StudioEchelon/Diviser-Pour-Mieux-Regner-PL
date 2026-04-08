@@ -28,6 +28,7 @@ POMPE_ACIDE_SRC="$ASSETS_DIR/pompe_acide.png"
 POMPE_DOUBLE_SRC="$ASSETS_DIR/pompe_double.png"
 POMPE_DOUBLE_CYBER_SRC="$ASSETS_DIR/pompe_double_cyber.png"
 GHOST_POMPE_SRC="$ASSETS_DIR/ghost_pompe.png"
+CLIO3_SRC="$ASSETS_DIR/clio3.png"
 # Optionnel : sinon on reutilise revolver.png pour eviter un pack casse
 if [[ -f "$ASSETS_DIR/radar.png" ]]; then
   RADAR_SRC="$ASSETS_DIR/radar.png"
@@ -49,6 +50,7 @@ POMPE_ACIDE_DST="$PACK_DIR/assets/dpmr/textures/item/pompe_acide.png"
 POMPE_DOUBLE_DST="$PACK_DIR/assets/dpmr/textures/item/pompe_double.png"
 POMPE_DOUBLE_CYBER_DST="$PACK_DIR/assets/dpmr/textures/item/pompe_double_cyber.png"
 GHOST_POMPE_DST="$PACK_DIR/assets/dpmr/textures/item/ghost_pompe.png"
+CLIO3_DST="$PACK_DIR/assets/dpmr/textures/item/clio3.png"
 RADAR_DST="$PACK_DIR/assets/dpmr/textures/item/radar.png"
 
 mkdir -p "$DIST_DIR"
@@ -108,7 +110,8 @@ for pair in \
   "$POMPE_ACIDE_SRC|$POMPE_ACIDE_DST|pompe acide" \
   "$POMPE_DOUBLE_SRC|$POMPE_DOUBLE_DST|pompe double" \
   "$POMPE_DOUBLE_CYBER_SRC|$POMPE_DOUBLE_CYBER_DST|pompe double cyber" \
-  "$GHOST_POMPE_SRC|$GHOST_POMPE_DST|ghost pompe"; do
+  "$GHOST_POMPE_SRC|$GHOST_POMPE_DST|ghost pompe" \
+  "$CLIO3_SRC|$CLIO3_DST|clio3"; do
   IFS='|' read -r _src _dst _label <<< "$pair"
   if [[ ! -f "$_src" ]]; then
     echo "Erreur: texture $_label introuvable: $_src"
@@ -130,6 +133,7 @@ cp -f "$POMPE_ACIDE_SRC" "$POMPE_ACIDE_DST"
 cp -f "$POMPE_DOUBLE_SRC" "$POMPE_DOUBLE_DST"
 cp -f "$POMPE_DOUBLE_CYBER_SRC" "$POMPE_DOUBLE_CYBER_DST"
 cp -f "$GHOST_POMPE_SRC" "$GHOST_POMPE_DST"
+cp -f "$CLIO3_SRC" "$CLIO3_DST"
 cp -f "$RADAR_SRC" "$RADAR_DST"
 [[ "$RADAR_SRC" != "$ASSETS_DIR/radar.png" ]] && echo "Note: radar.png absent -> texture radar = revolver (ajoute assets/radar.png pour l'outil radar)."
 

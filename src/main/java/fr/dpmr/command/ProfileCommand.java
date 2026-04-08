@@ -19,7 +19,7 @@ public class ProfileCommand implements CommandExecutor {
     @Override
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
         if (!(sender instanceof Player player)) {
-            sender.sendMessage(Component.text("Commande joueur uniquement.", NamedTextColor.RED));
+            sender.sendMessage(Component.text("Players only.", NamedTextColor.RED));
             return true;
         }
         profileGui.open(player);

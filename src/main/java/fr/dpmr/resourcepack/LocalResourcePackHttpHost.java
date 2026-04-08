@@ -25,21 +25,32 @@ final class LocalResourcePackHttpHost {
     private final String bindAddress;
     private final int port;
     private final String contextPath;
+    /** When non-null/non-blank, {@link #start()} skips reading the whole file for SHA-1 (heavy on main thread). */
+    private final String precomputedSha1Hex;
     private HttpServer server;
     private String sha1Hex = "";
 
     LocalResourcePackHttpHost(File zipFile, String bindAddress, int port, String contextPath) {
+        this(zipFile, bindAddress, port, contextPath, null);
+    }
+
+    LocalResourcePackHttpHost(File zipFile, String bindAddress, int port, String contextPath, String precomputedSha1Hex) {
         this.zipFile = zipFile;
         this.bindAddress = bindAddress == null || bindAddress.isBlank() ? "0.0.0.0" : bindAddress.trim();
         this.port = port;
         this.contextPath = contextPath.startsWith("/") ? contextPath : "/" + contextPath;
+        this.precomputedSha1Hex = precomputedSha1Hex;
     }
 
     void start() throws IOException {
         if (!zipFile.isFile()) {
             throw new IOException("Fichier pack introuvable: " + zipFile.getAbsolutePath());
         }
-        sha1Hex = sha1HexOfFile(zipFile);
+        if (precomputedSha1Hex != null && !precomputedSha1Hex.isBlank()) {
+            sha1Hex = precomputedSha1Hex;
+        } else {
+            sha1Hex = sha1HexOfFile(zipFile);
+        }
         InetSocketAddress addr;
         if ("0.0.0.0".equals(bindAddress)) {
             addr = new InetSocketAddress(port);
@@ -95,7 +106,8 @@ final class LocalResourcePackHttpHost {
         return sha1Hex;
     }
 
-    private static String sha1HexOfFile(File f) throws IOException {
+    /** Full-file read; call from an async worker, not the server main thread, for large zips. */
+    static String sha1HexOfFile(File f) throws IOException {
         try {
             MessageDigest md = MessageDigest.getInstance("SHA-1");
             try (DigestInputStream in = new DigestInputStream(new FileInputStream(f), md)) {

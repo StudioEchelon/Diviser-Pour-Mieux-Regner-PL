@@ -36,6 +36,7 @@ import org.bukkit.event.player.PlayerInteractAtEntityEvent;
 import org.bukkit.event.player.PlayerInteractEntityEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.event.player.PlayerRespawnEvent;
+import org.bukkit.event.world.EntitiesLoadEvent;
 import fr.dpmr.game.WeaponProfile;
 import org.bukkit.inventory.EquipmentSlot;
 import org.bukkit.inventory.ItemStack;
@@ -67,16 +68,15 @@ public class NpcSpawnerManager implements Listener {
     private final NamespacedKey keyNpcBaseName;
     private final NamespacedKey keyFakeNpc;
     private final NamespacedKey keyNpcSpawnSource;
+    private final NamespacedKey keyNpcShotScale;
     private final Map<String, NpcSpawnerDef> spawners = new HashMap<>();
-    private final Map<String, Long> spawnerAutoCooldown = new HashMap<>();
-    private BukkitTask autoSpawnTask;
     /** Blocs ou un spawn DPMR est autorise (contourne WorldGuard / annulations). */
     private final Set<String> spawnBypassBlockKeys = ConcurrentHashMap.newKeySet();
     /** Handle Citizens par UUID entite : {@code getNPC(mort)} echoue souvent, il faut detruire via le handle tout de suite. */
     private final Map<UUID, Object> citizensCombatNpcHandles = new ConcurrentHashMap<>();
 
     private enum NpcKind {
-        MILITARY, ZOMBIE, RAIDER;
+        MILITARY, ZOMBIE, RAIDER, PATROL;
 
         static NpcKind from(String raw) {
             if (raw == null || raw.isBlank()) {
@@ -90,15 +90,20 @@ public class NpcSpawnerManager implements Listener {
         }
     }
 
-    private record NpcSpawnerDef(String id, String world, int x, int y, int z, NpcKind kind, int rewardPoints, int goldMin, int goldMax, int despawnTicks) {
+    private record NpcSpawnerDef(String id, String world, int x, int y, int z, NpcKind kind, int rewardPoints, int goldMin, int goldMax, int despawnTicks, double npcShotDamageScale) {
+        NpcSpawnerDef(String id, String world, int x, int y, int z, NpcKind kind, int rewardPoints, int goldMin, int goldMax, int despawnTicks) {
+            this(id, world, x, y, z, kind, rewardPoints, goldMin, goldMax, despawnTicks, 1.0);
+        }
         NpcSpawnerDef(String id, String world, int x, int y, int z, NpcKind kind, int rewardPoints, int goldMin, int goldMax) {
-            this(id, world, x, y, z, kind, rewardPoints, goldMin, goldMax, 225);
+            this(id, world, x, y, z, kind, rewardPoints, goldMin, goldMax, 225, 1.0);
         }
     }
 
     private static final String[] WEAPONS_MILITARY = {"CARABINE_MK18", "AK47", "PULSE"};
     private static final String[] WEAPONS_ZOMBIE = {"CM_BAMBOU", "GLOCK18", "CM_PEPITE"};
     private static final String[] WEAPONS_RAIDER = {"DRAGUNOV_SVD", "DEAGLE_RL", "AWP"};
+    /** Sentinelles zone war : un seul pistolet léger, tir espacé côté stats. */
+    private static final String[] WEAPONS_PATROL = {"GLOCK18"};
     public NpcSpawnerManager(JavaPlugin plugin, PointsManager pointsManager, WeaponManager weaponManager) {
         this.plugin = plugin;
         this.pointsManager = pointsManager;
@@ -110,45 +115,13 @@ public class NpcSpawnerManager implements Listener {
         this.keyNpcBaseName = new NamespacedKey(plugin, "dpmr_npc_base_name");
         this.keyFakeNpc = new NamespacedKey(plugin, "dpmr_fake_npc");
         this.keyNpcSpawnSource = new NamespacedKey(plugin, "dpmr_npc_spawn_src");
+        this.keyNpcShotScale = new NamespacedKey(plugin, "dpmr_npc_shot_scale");
         load();
-        startAutoSpawnTask();
     }
 
-    /** Annule le timer de vagues (obligatoire au reload / disable du plugin). */
+    /** Retire tous les PNJ DPMR (obligatoire au reload / disable du plugin). */
     public void shutdown() {
-        if (autoSpawnTask != null) {
-            autoSpawnTask.cancel();
-            autoSpawnTask = null;
-        }
-    }
-
-    private void startAutoSpawnTask() {
-        shutdown();
-        long period = Math.max(40L, plugin.getConfig().getLong("npc-spawners.auto-check-period-ticks", 120L));
-        long firstDelay = Math.max(period, plugin.getConfig().getLong("npc-spawners.first-check-delay-ticks", 220L));
-        autoSpawnTask = Bukkit.getScheduler().runTaskTimer(plugin, this::tickAutoSpawners, firstDelay, period);
-    }
-
-    /** Apres /reload du plugin ou /dpmr warworld reload : relit config.yml et relance le timer des vagues. */
-    public void reloadConfigAndNpcTimers() {
-        plugin.reloadConfig();
-        startAutoSpawnTask();
-    }
-
-    /**
-     * Apres load / reload : evite que tous les spawners declenchent une vague au meme tick (pic au /reload).
-     */
-    private void staggerSpawnerCooldowns() {
-        long now = System.currentTimeMillis();
-        long maxStagger = Math.max(10_000L, plugin.getConfig().getLong("npc-spawners.startup-stagger-max-ms", 180_000L));
-        for (NpcSpawnerDef def : spawners.values()) {
-            long stagger = ThreadLocalRandom.current().nextLong(12_000L, maxStagger + 1);
-            spawnerAutoCooldown.put(def.id, now + stagger);
-        }
-    }
-
-    private long autoSpawnIntervalMs() {
-        return Math.max(25_000L, plugin.getConfig().getLong("npc-spawners.auto-spawn-interval-ms", 120_000L));
+        killAllSpawnedFakeNpcs();
     }
 
     /**
@@ -228,26 +201,6 @@ public class NpcSpawnerManager implements Listener {
         return null;
     }
 
-    private void tickAutoSpawners() {
-        long now = System.currentTimeMillis();
-        for (NpcSpawnerDef def : spawners.values()) {
-            World w = Bukkit.getWorld(def.world);
-            if (w == null) {
-                continue;
-            }
-            if (!w.isChunkLoaded(def.x >> 4, def.z >> 4)) {
-                continue;
-            }
-            if (spawnerAutoCooldown.getOrDefault(def.id, 0L) > now) {
-                continue;
-            }
-            Location center = new Location(w, def.x + 0.5, def.y + 1.0, def.z + 0.5);
-            if (spawnNpcWave(def, center)) {
-                spawnerAutoCooldown.put(def.id, now + autoSpawnIntervalMs());
-            }
-        }
-    }
-
     private static String blockBypassKey(Location loc) {
         if (loc.getWorld() == null) {
             return "";
@@ -276,7 +229,6 @@ public class NpcSpawnerManager implements Listener {
 
     private void load() {
         spawners.clear();
-        spawnerAutoCooldown.clear();
         if (!yaml.isConfigurationSection("spawners")) {
             return;
         }
@@ -291,11 +243,15 @@ public class NpcSpawnerManager implements Listener {
             int gMin = Math.max(0, yaml.getInt(base + "reward-gold-min", 1));
             int gMax = Math.max(gMin, yaml.getInt(base + "reward-gold-max", 3));
             int despawn = Math.max(40, yaml.getInt(base + "despawn-ticks", 225));
+            double shotScale = yaml.getDouble(base + "npc-shot-damage-scale", 1.0);
+            if (shotScale <= 0 || Double.isNaN(shotScale)) {
+                shotScale = 1.0;
+            }
+            shotScale = Math.min(4.0, shotScale);
             if (!world.isBlank()) {
-                spawners.put(key.toLowerCase(Locale.ROOT), new NpcSpawnerDef(key.toLowerCase(Locale.ROOT), world, x, y, z, kind, reward, gMin, gMax, despawn));
+                spawners.put(key.toLowerCase(Locale.ROOT), new NpcSpawnerDef(key.toLowerCase(Locale.ROOT), world, x, y, z, kind, reward, gMin, gMax, despawn, shotScale));
             }
         }
-        staggerSpawnerCooldowns();
     }
 
     public void save() {
@@ -311,6 +267,11 @@ public class NpcSpawnerManager implements Listener {
             yaml.set(base + "reward-gold-min", def.goldMin);
             yaml.set(base + "reward-gold-max", def.goldMax);
             yaml.set(base + "despawn-ticks", def.despawnTicks());
+            if (def.npcShotDamageScale() > 0 && Math.abs(def.npcShotDamageScale() - 1.0) > 1e-4) {
+                yaml.set(base + "npc-shot-damage-scale", def.npcShotDamageScale());
+            } else {
+                yaml.set(base + "npc-shot-damage-scale", null);
+            }
         }
         try {
             yaml.save(file);
@@ -330,11 +291,8 @@ public class NpcSpawnerManager implements Listener {
         spawners.put(key, new NpcSpawnerDef(
                 key, blockLoc.getWorld().getName(),
                 blockLoc.getBlockX(), blockLoc.getBlockY(), blockLoc.getBlockZ(),
-                kind, Math.max(1, rewardPoints), gMin, gMax, 225
+                kind, Math.max(1, rewardPoints), gMin, gMax, 225, 1.0
         ));
-        long now = System.currentTimeMillis();
-        long maxStagger = Math.max(10_000L, plugin.getConfig().getLong("npc-spawners.startup-stagger-max-ms", 180_000L));
-        spawnerAutoCooldown.put(key, now + ThreadLocalRandom.current().nextLong(15_000L, maxStagger + 1));
         save();
         admin.sendMessage(Component.text(
                 "Spawner NPC '" + key + "' cree (" + kind.name() + ") @ "
@@ -345,11 +303,10 @@ public class NpcSpawnerManager implements Listener {
     public void delete(Player admin, String id) {
         String key = id.toLowerCase(Locale.ROOT);
         if (spawners.remove(key) != null) {
-            spawnerAutoCooldown.remove(key);
             save();
             admin.sendMessage(Component.text("Spawner NPC '" + key + "' supprime.", NamedTextColor.YELLOW));
         } else {
-            admin.sendMessage(Component.text("Spawner introuvable.", NamedTextColor.RED));
+            admin.sendMessage(Component.text("Spawner not found.", NamedTextColor.RED));
         }
     }
 
@@ -372,7 +329,7 @@ public class NpcSpawnerManager implements Listener {
         }
         event.setCancelled(true);
         event.getPlayer().sendActionBar(Component.text(
-                "Spawner '" + def.id + "' — vagues automatiques", NamedTextColor.AQUA));
+                "Spawner '" + def.id + "' — spawn PNJ désactivé", NamedTextColor.GRAY));
     }
 
     private NpcSpawnerDef findByLocation(Location loc) {
@@ -390,33 +347,12 @@ public class NpcSpawnerManager implements Listener {
         return null;
     }
 
-    private boolean spawnNpcWave(NpcSpawnerDef def, Location center) {
-        World world = center.getWorld();
-        if (world == null) {
-            return false;
-        }
-        int waveMin = Math.max(1, plugin.getConfig().getInt("npc-spawners.wave-min", 1));
-        int waveMax = Math.max(waveMin, plugin.getConfig().getInt("npc-spawners.wave-max", 1));
-        int wave = ThreadLocalRandom.current().nextInt(waveMin, waveMax + 1);
-        int spawned = 0;
-        for (int i = 0; i < wave; i++) {
-            Location raw = center.clone().add(
-                    ThreadLocalRandom.current().nextDouble(-1.1, 1.1),
-                    0,
-                    ThreadLocalRandom.current().nextDouble(-1.1, 1.1)
-            );
-            if (spawnOneCombatNpc(def, raw)) {
-                spawned++;
-            }
-        }
-        return spawned > 0;
-    }
-
     private ItemStack weaponItemFor(NpcKind kind) {
         String[] ids = switch (kind) {
             case MILITARY -> WEAPONS_MILITARY;
             case ZOMBIE -> WEAPONS_ZOMBIE;
             case RAIDER -> WEAPONS_RAIDER;
+            case PATROL -> WEAPONS_PATROL;
         };
         String id = ids[ThreadLocalRandom.current().nextInt(ids.length)];
         ItemStack w = weaponManager.createWeaponItem(id);
@@ -433,25 +369,24 @@ public class NpcSpawnerManager implements Listener {
         } else {
             living.getPersistentDataContainer().remove(keyNpcSpawnSource);
         }
+        double s = def.npcShotDamageScale();
+        if (s > 0 && Math.abs(s - 1.0) > 1e-4 && !Double.isNaN(s)) {
+            living.getPersistentDataContainer().set(keyNpcShotScale, PersistentDataType.DOUBLE, Math.min(4.0, s));
+        } else {
+            living.getPersistentDataContainer().remove(keyNpcShotScale);
+        }
     }
 
-    /**
-     * PNJ ponctuel (zone war / événement), pas lié à un bloc spawner.
-     */
+    /** Désactivé : aucun spawn de PNJ de combat par le plugin. */
     public boolean spawnSingleCustomNpc(Location at, String kindName, int rewardPoints, int goldMin, int goldMax,
             int despawnTicks, String spawnSource) {
-        World w = at.getWorld();
-        if (w == null) {
-            return false;
-        }
-        NpcKind kind = NpcKind.from(kindName);
-        int gMin = Math.max(0, goldMin);
-        int gMax = Math.max(gMin, goldMax);
-        int despawn = Math.max(40, despawnTicks);
-        NpcSpawnerDef def = new NpcSpawnerDef(
-                "_event", w.getName(), at.getBlockX(), at.getBlockY(), at.getBlockZ(),
-                kind, Math.max(1, rewardPoints), gMin, gMax, despawn);
-        return spawnOneCombatNpc(def, at.clone(), spawnSource);
+        return false;
+    }
+
+    /** Désactivé : aucun spawn de PNJ de combat par le plugin. */
+    public boolean spawnSingleCustomNpc(Location at, String kindName, int rewardPoints, int goldMin, int goldMax,
+            int despawnTicks, String spawnSource, double npcShotDamageScale) {
+        return false;
     }
 
     /**
@@ -526,6 +461,9 @@ public class NpcSpawnerManager implements Listener {
                     plugin, spawnLoc, displayName, def.kind.name(), mainWeapon, npcHelmet);
             if (cit != null && cit.living() != null && cit.living().isValid()) {
                 applyNpcRewardsPdc(cit.living(), def, displayName, spawnSource);
+                if (def.kind == NpcKind.PATROL) {
+                    applyPatrolVitality(cit.living());
+                }
                 cit.living().setSilent(plugin.getConfig().getBoolean("npc-spawners.silent-npcs", false));
                 polishCitizensNpcPlayer(cit.living());
                 refreshNpcNameplate(cit.living());
@@ -639,8 +577,17 @@ public class NpcSpawnerManager implements Listener {
                 case MILITARY -> new FakeNpcStats(22, 0.34, 14);
                 case ZOMBIE -> new FakeNpcStats(14, 0.38, 10);
                 case RAIDER -> new FakeNpcStats(24, 0.30, 16);
+                case PATROL -> new FakeNpcStats(16, 0.28, 11);
             };
         }
+    }
+
+    private static void applyPatrolVitality(LivingEntity living) {
+        var maxAttr = living.getAttribute(Attribute.GENERIC_MAX_HEALTH);
+        if (maxAttr != null) {
+            maxAttr.setBaseValue(14.0);
+        }
+        living.setHealth(14.0);
     }
 
     private void refreshNpcNameplate(LivingEntity living) {
@@ -754,9 +701,13 @@ public class NpcSpawnerManager implements Listener {
         stand.setInvulnerable(false);
         var maxAttr = stand.getAttribute(Attribute.GENERIC_MAX_HEALTH);
         if (maxAttr != null) {
-            maxAttr.setBaseValue(20.0);
+            if (def.kind == NpcKind.PATROL) {
+                maxAttr.setBaseValue(14.0);
+            } else {
+                maxAttr.setBaseValue(20.0);
+            }
         }
-        stand.setHealth(20.0);
+        stand.setHealth(def.kind == NpcKind.PATROL ? 14.0 : 20.0);
         var eq = stand.getEquipment();
         if (eq == null) {
             return;
@@ -904,10 +855,10 @@ public class NpcSpawnerManager implements Listener {
             return;
         }
         int pts = Math.max(1, reward);
-        pointsManager.addPoints(killer.getUniqueId(), pts);
+        int gained = pointsManager.addKillRewardPoints(killer.getUniqueId(), pts);
         pointsManager.addKill(killer.getUniqueId());
-        pointsManager.save();
-        killer.sendActionBar(Component.text("+" + pts + " pts", NamedTextColor.GOLD));
+        pointsManager.saveAsync();
+        killer.sendActionBar(Component.text("+" + gained + " pts", NamedTextColor.GOLD));
     }
 
     /**

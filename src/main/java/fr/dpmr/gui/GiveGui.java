@@ -2,9 +2,14 @@ package fr.dpmr.gui;
 
 import fr.dpmr.game.BandageManager;
 import fr.dpmr.game.DpmrConsumable;
+import fr.dpmr.game.PokerCard;
+import fr.dpmr.game.PokerCardManager;
+import fr.dpmr.game.PokerRank;
+import fr.dpmr.game.PokerSuit;
 import fr.dpmr.game.LaunchpadManager;
 import fr.dpmr.game.LaunchpadStyle;
 import fr.dpmr.game.RadarManager;
+import fr.dpmr.game.WallVisionManager;
 import fr.dpmr.game.WeaponManager;
 import fr.dpmr.game.WeaponProfile;
 import fr.dpmr.game.WeaponRarity;
@@ -26,6 +31,7 @@ import org.bukkit.inventory.meta.ItemMeta;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
+import java.util.concurrent.ThreadLocalRandom;
 
 public class GiveGui implements Listener {
 
@@ -38,6 +44,8 @@ public class GiveGui implements Listener {
     private static final int SLOT_WEAPONS_MENU = 11;
     private static final int SLOT_RARITY_MENU = 13;
     private static final int SLOT_CONSUMABLES_MENU = 15;
+    private static final int SLOT_WALL_VISION = 10;
+    private static final int SLOT_INFRARED = 12;
     private static final int SLOT_RADAR = 16;
     private static final int SLOT_LAUNCHPAD_MENU = 17;
     private static final int SLOT_CLOSE_MAIN = 22;
@@ -48,27 +56,35 @@ public class GiveGui implements Listener {
     private final WeaponManager weaponManager;
     private final BandageManager bandageManager;
     private final RadarManager radarManager;
+    private final WallVisionManager wallVisionManager;
     private final LaunchpadManager launchpadManager;
+    private final PokerCardManager pokerCardManager;
 
-    public GiveGui(WeaponManager weaponManager, BandageManager bandageManager, RadarManager radarManager, LaunchpadManager launchpadManager) {
+    public GiveGui(WeaponManager weaponManager, BandageManager bandageManager, RadarManager radarManager,
+                   WallVisionManager wallVisionManager, LaunchpadManager launchpadManager,
+                   PokerCardManager pokerCardManager) {
         this.weaponManager = weaponManager;
         this.bandageManager = bandageManager;
         this.radarManager = radarManager;
+        this.wallVisionManager = wallVisionManager;
         this.launchpadManager = launchpadManager;
+        this.pokerCardManager = pokerCardManager;
     }
 
     public void openMain(Player player) {
         Inventory inv = Bukkit.createInventory(null, 27, TITLE_MAIN);
         inv.setItem(SLOT_WEAPONS_MENU, button(Material.CROSSBOW, "Toutes les armes", NamedTextColor.GOLD,
-                List.of(Component.text("Clic: ouvrir la liste", NamedTextColor.GRAY))));
+                List.of(Component.text("Click: open list", NamedTextColor.GRAY))));
+        inv.setItem(SLOT_WALL_VISION, button(Material.SPYGLASS, "Lunettes de scan x1", NamedTextColor.DARK_PURPLE,
+                List.of(Component.text("Clic droit : joueurs en glow violet ~15 s", NamedTextColor.GRAY))));
         inv.setItem(SLOT_RARITY_MENU, button(Material.NETHER_STAR, "Filtrer par rarete", NamedTextColor.AQUA,
                 List.of(Component.text("Commun → Legendaire", NamedTextColor.GRAY))));
         inv.setItem(SLOT_CONSUMABLES_MENU, button(Material.PAPER, "Consommables (soins & bouclier)", NamedTextColor.RED,
-                List.of(Component.text("Clic: bandages, medikit, potions", NamedTextColor.GRAY))));
-        inv.setItem(SLOT_RADAR, button(Material.COMPASS, "Radar joueur x1", NamedTextColor.AQUA,
-                List.of(Component.text("Clic gauche radar: reload", NamedTextColor.GRAY))));
+                List.of(Component.text("Click: bandages, medikit, potions, cartes poker", NamedTextColor.GRAY))));
+        inv.setItem(SLOT_RADAR, button(Material.COMPASS, "Player radar x1", NamedTextColor.AQUA,
+                List.of(Component.text("Left-click radar: reload", NamedTextColor.GRAY))));
         inv.setItem(SLOT_LAUNCHPAD_MENU, button(Material.SLIME_BLOCK, "Launchpads", NamedTextColor.GREEN,
-                List.of(Component.text("Clic: choisir un style (x8)", NamedTextColor.GRAY))));
+                List.of(Component.text("Click: pick a style (x8)", NamedTextColor.GRAY))));
         inv.setItem(SLOT_CLOSE_MAIN, button(Material.BARRIER, "Fermer", NamedTextColor.RED, List.of()));
         player.openInventory(inv);
     }
@@ -89,6 +105,12 @@ public class GiveGui implements Listener {
                 List.of(Component.text("Absorption moyenne", NamedTextColor.GRAY))));
         inv.setItem(16, button(Material.POTION, "Potion bouclier (grande) x2", NamedTextColor.BLUE,
                 List.of(Component.text("Absorption longue", NamedTextColor.GRAY))));
+        inv.setItem(19, button(Material.PAPER, "Cartes poker aleatoires x8", NamedTextColor.GOLD,
+                List.of(Component.text("52 couleurs + 2 jokers (power-ups)", NamedTextColor.GRAY))));
+        inv.setItem(20, button(Material.PAPER, "As de coeur x1 (tir rapide)", NamedTextColor.RED,
+                List.of(Component.text("Demo", NamedTextColor.DARK_GRAY))));
+        inv.setItem(21, button(Material.PAPER, "Joker rouge x1 (furtivite)", NamedTextColor.LIGHT_PURPLE,
+                List.of(Component.text("Demo", NamedTextColor.DARK_GRAY))));
         inv.setItem(18, button(Material.ARROW, "Retour", NamedTextColor.YELLOW, List.of()));
         inv.setItem(SLOT_CLOSE_MAIN, button(Material.BARRIER, "Fermer", NamedTextColor.RED, List.of()));
         player.openInventory(inv);
@@ -132,7 +154,7 @@ public class GiveGui implements Listener {
                 case GHOST -> Material.PURPLE_STAINED_GLASS_PANE;
             };
             inv.setItem(i++, button(mat, r.displayFr(), r.color(),
-                    List.of(Component.text("Voir les armes " + r.displayFr().toLowerCase(), NamedTextColor.DARK_GRAY))));
+                    List.of(Component.text("Browse " + r.displayFr().toLowerCase() + " weapons", NamedTextColor.DARK_GRAY))));
         }
         inv.setItem(SLOT_CLOSE_MAIN, button(Material.BARRIER, "Fermer", NamedTextColor.RED, List.of()));
         player.openInventory(inv);
@@ -205,7 +227,7 @@ public class GiveGui implements Listener {
     public void onDrag(InventoryDragEvent event) {
         Component title = event.getView().title();
         if (titlesMatch(title, TITLE_MAIN) || titlesMatch(title, TITLE_WEAPONS) || titlesMatch(title, TITLE_BY_RARITY)
-                || titlesMatch(title, TITLE_LAUNCHPADS)
+                || titlesMatch(title, TITLE_LAUNCHPADS) || titlesMatch(title, TITLE_CONSUMABLES)
                 || isRarityWeaponsView(title)) {
             event.setCancelled(true);
         }
@@ -256,10 +278,22 @@ public class GiveGui implements Listener {
                 openConsumables(player);
                 return;
             }
+            if (slot == SLOT_WALL_VISION) {
+                player.getInventory().addItem(wallVisionManager.createGoggles(1));
+                player.playSound(player.getLocation(), Sound.ENTITY_ITEM_PICKUP, 0.8f, 1.35f);
+                player.sendMessage(Component.text("+1 lunettes de scan", NamedTextColor.LIGHT_PURPLE));
+                return;
+            }
+            if (slot == SLOT_INFRARED) {
+                player.getInventory().addItem(wallVisionManager.createInfraredGoggles(1));
+                player.playSound(player.getLocation(), Sound.ENTITY_ITEM_PICKUP, 0.8f, 1.2f);
+                player.sendMessage(Component.text("+1 lunettes infrarouges", NamedTextColor.RED));
+                return;
+            }
             if (slot == SLOT_RADAR) {
                 player.getInventory().addItem(radarManager.createRadar(1));
                 player.playSound(player.getLocation(), Sound.ENTITY_ITEM_PICKUP, 0.8f, 1.3f);
-                player.sendMessage(Component.text("+1 radar joueur", NamedTextColor.AQUA));
+                player.sendMessage(Component.text("+1 player radar", NamedTextColor.AQUA));
                 return;
             }
             if (slot == SLOT_LAUNCHPAD_MENU) {
@@ -318,6 +352,27 @@ public class GiveGui implements Listener {
                 player.getInventory().addItem(bandageManager.createConsumable(DpmrConsumable.SHIELD_POTION_LARGE, 2));
                 player.playSound(player.getLocation(), Sound.ENTITY_ITEM_PICKUP, 0.8f, 1.25f);
                 player.sendMessage(Component.text("+2 potions bouclier (grande)", NamedTextColor.BLUE));
+                return;
+            }
+            if (slot == 19) {
+                ThreadLocalRandom r = ThreadLocalRandom.current();
+                for (int i = 0; i < 8; i++) {
+                    player.getInventory().addItem(pokerCardManager.createCard(PokerCard.randomFullDeck(r), 1));
+                }
+                player.playSound(player.getLocation(), Sound.ENTITY_ITEM_PICKUP, 0.85f, 1.3f);
+                player.sendMessage(Component.text("+8 cartes poker (aleatoires)", NamedTextColor.GOLD));
+                return;
+            }
+            if (slot == 20) {
+                player.getInventory().addItem(pokerCardManager.createCard(PokerCard.of(PokerSuit.HEARTS, PokerRank.ACE), 1));
+                player.playSound(player.getLocation(), Sound.ENTITY_ITEM_PICKUP, 0.85f, 1.35f);
+                player.sendMessage(Component.text("+1 As de coeur", NamedTextColor.RED));
+                return;
+            }
+            if (slot == 21) {
+                player.getInventory().addItem(pokerCardManager.createCard(PokerCard.redJoker(), 1));
+                player.playSound(player.getLocation(), Sound.ENTITY_ITEM_PICKUP, 0.85f, 1.2f);
+                player.sendMessage(Component.text("+1 Joker rouge", NamedTextColor.LIGHT_PURPLE));
                 return;
             }
             return;

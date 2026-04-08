@@ -118,6 +118,9 @@ public class WeaponManager implements Listener {
     private final fr.dpmr.armor.ArmorManager armorManager;
     private final PlayerLanguageStore languageStore;
     private final PowerupBlockManager powerupBlockManager;
+    private BalloonChestManager balloonChestManager;
+    private BukkitTask scopeTask;
+    private BukkitTask gasFxTask;
     private final NamespacedKey keyWeaponId;
     private final NamespacedKey keyProjDamage;
     private final NamespacedKey keyProjOwner;
@@ -141,6 +144,11 @@ public class WeaponManager implements Listener {
     private final NamespacedKey keyNpcShotScale;
     /** ID cosmétique ({@link CosmeticProfile#id()}) pour skins d'arme (Thompson). */
     private final NamespacedKey keyWeaponCosmetic;
+
+    /**
+     * Valeur par defaut si {@code config.yml} n'a pas les cles (doit matcher {@code carrot_on_a_stick.json} dans le pack).
+     */
+    private static final int THOMPSON_CUSTOM_MODEL_DEFAULT = 5070;
 
     private static final class DeployedTurret {
         final List<Block> blocks;
@@ -198,6 +206,10 @@ public class WeaponManager implements Listener {
         }
     }
 
+    public JavaPlugin getPlugin() {
+        return plugin;
+    }
+
     public WeaponManager(JavaPlugin plugin, fr.dpmr.cosmetics.CosmeticsManager cosmeticsManager, fr.dpmr.zone.ZoneManager zoneManager,
                          fr.dpmr.armor.ArmorManager armorManager, PlayerLanguageStore languageStore,
                          PowerupBlockManager powerupBlockManager) {
@@ -225,8 +237,31 @@ public class WeaponManager implements Listener {
         this.keyVirtArrow = new NamespacedKey(plugin, "dpmr_virt_arrow");
         this.keyNpcShotScale = new NamespacedKey(plugin, "dpmr_npc_shot_scale");
         this.keyWeaponCosmetic = new NamespacedKey(plugin, "weapon_cosmetic");
-        Bukkit.getScheduler().runTaskTimer(plugin, this::tickScopeAndHeavyEffects, 8L, 8L);
-        Bukkit.getScheduler().runTaskTimer(plugin, this::tickGasolineFx, 10L, 10L);
+        scopeTask = Bukkit.getScheduler().runTaskTimer(plugin, this::tickScopeAndHeavyEffects, 8L, 8L);
+        gasFxTask = Bukkit.getScheduler().runTaskTimer(plugin, this::tickGasolineFx, 10L, 10L);
+    }
+
+    public void setBalloonChestManager(BalloonChestManager balloonChestManager) {
+        this.balloonChestManager = balloonChestManager;
+    }
+
+    public void stop() {
+        if (scopeTask != null) { scopeTask.cancel(); scopeTask = null; }
+        if (gasFxTask != null) { gasFxTask.cancel(); gasFxTask = null; }
+        clipAmmo.clear();
+        lastShotTimeMs.clear();
+        recoilMeter.clear();
+        minigunHeat.clear();
+        minigunHeatLastMs.clear();
+        techShotCount.clear();
+        lastTurretDeployMs.clear();
+        gasolinePuddles.clear();
+        for (BukkitTask t : nuclearTasks.values()) { if (t != null) t.cancel(); }
+        nuclearTasks.clear();
+        for (BukkitTask t : rocketHomingTasks.values()) { if (t != null) t.cancel(); }
+        rocketHomingTasks.clear();
+        for (Clio3VisualSession s : clio3VisualByProjectile.values()) { if (s.task != null) s.task.cancel(); }
+        clio3VisualByProjectile.clear();
     }
 
     /** Segment œil tireur → impact : si ça traverse une zone safe, pas de dégâts d'arme. */
@@ -381,7 +416,9 @@ public class WeaponManager implements Listener {
     private void tickScopeAndHeavyEffects() {
         for (Player player : Bukkit.getOnlinePlayers()) {
             WeaponProfile w = fromItem(player.getInventory().getItemInMainHand());
-            player.setWalkSpeed(VANILLA_WALK_SPEED);
+            if (player.getWalkSpeed() != VANILLA_WALK_SPEED) {
+                player.setWalkSpeed(VANILLA_WALK_SPEED);
+            }
             if (w == null) {
                 continue;
             }
@@ -470,7 +507,8 @@ public class WeaponManager implements Listener {
         assignNewWeaponInstanceId(item);
         meta = item.getItemMeta();
         applyWeaponDurabilityOnMeta(meta, w);
-        WeaponLoreBuilder.apply(meta, w, WeaponUpgradeState.NONE, BombUpgradeState.NONE, MortarUpgradeState.NONE, RocketUpgradeState.NONE, RevolverUpgradeState.NONE, JerrycanUpgradeState.NONE, locale, null, maxClipForStack(w, item));
+        WeaponLoreBuilder.apply(meta, w, WeaponUpgradeState.NONE, BombUpgradeState.NONE, MortarUpgradeState.NONE, RocketUpgradeState.NONE, RevolverUpgradeState.NONE, JerrycanUpgradeState.NONE, locale, null, maxClipForStack(w, item),
+                WeaponLoreBuilder.killMeterFor(item, w, plugin));
         meta.setEnchantmentGlintOverride(w.rarity().glint());
         meta.addItemFlags(ItemFlag.HIDE_ENCHANTS);
         item.setItemMeta(meta);
@@ -560,6 +598,34 @@ public class WeaponManager implements Listener {
         return newId;
     }
 
+    /** UUID d'instance (munitions / jauge kills) — public pour perks. */
+    public String readWeaponInstanceId(ItemStack stack) {
+        if (stack == null || !stack.hasItemMeta()) {
+            return null;
+        }
+        return stack.getItemMeta().getPersistentDataContainer().get(keyWeaponInstance, PersistentDataType.STRING);
+    }
+
+    public ItemStack findWeaponStackByInstance(Player player, String instanceId) {
+        if (player == null || instanceId == null || instanceId.isBlank()) {
+            return null;
+        }
+        for (ItemStack s : player.getInventory().getContents()) {
+            if (s != null && instanceId.equals(readWeaponInstanceId(s))) {
+                return s;
+            }
+        }
+        ItemStack off = player.getInventory().getItemInOffHand();
+        if (off != null && instanceId.equals(readWeaponInstanceId(off))) {
+            return off;
+        }
+        return null;
+    }
+
+    public void touchWeaponInstanceId(Player player, ItemStack stack) {
+        ensureWeaponInstanceId(player, stack);
+    }
+
     public void refreshWeaponMeta(ItemStack item) {
         refreshWeaponMeta(item, null);
     }
@@ -585,7 +651,8 @@ public class WeaponManager implements Listener {
         applyWeaponDurabilityOnMeta(meta, w);
         int magCap = maxClipForStack(w, item);
         Integer magCur = viewer != null ? getClip(viewer, w, item) : null;
-        WeaponLoreBuilder.apply(meta, w, st, bs, ms, rs, rvs, js, loc, magCur, magCap);
+        WeaponLoreBuilder.apply(meta, w, st, bs, ms, rs, rvs, js, loc, magCur, magCap,
+                WeaponLoreBuilder.killMeterFor(item, w, plugin));
         meta.setEnchantmentGlintOverride(w.rarity().glint());
         meta.addItemFlags(ItemFlag.HIDE_ENCHANTS);
         item.setItemMeta(meta);
@@ -608,9 +675,10 @@ public class WeaponManager implements Listener {
             if (cmd <= 0) {
                 cmd = plugin.getConfig().getInt("weapons.custom-model-data." + w.name(), 0);
             }
-            if (cmd > 0) {
-                meta.setCustomModelData(cmd);
+            if (cmd <= 0) {
+                cmd = THOMPSON_CUSTOM_MODEL_DEFAULT;
             }
+            meta.setCustomModelData(cmd);
             return;
         }
         if (w == WeaponProfile.COUTEAU_COMBAT && viewerUuid != null && cosmeticsManager != null) {
@@ -1064,6 +1132,7 @@ public class WeaponManager implements Listener {
             minDelay = Math.max(minDelay, GRAPPLE_COOLDOWN_MS);
         }
         minDelay = (long) (minDelay * powerupBlockManager.rapidFireCooldownMultiplier(player));
+        minDelay = (long) (minDelay * WeaponKillPerkEffects.cooldownMultiplier(main, plugin));
         if (w.isMinigun()) {
             double heat = decayedMinigunHeat(player.getUniqueId(), now);
             if (heat >= 1.0) {
@@ -1093,8 +1162,43 @@ public class WeaponManager implements Listener {
         long previousShotMs = lastShotTimeMs.getOrDefault(player.getUniqueId(), 0L);
         lastShotTimeMs.put(player.getUniqueId(), now);
         fire(player, w, main, previousShotMs);
+        scheduleKillPerkDoubleTap(player, w, main);
         wearWeaponOnShot(player, player.getInventory().getItemInMainHand(), w);
         sendAmmoActionBar(player, w, main);
+    }
+
+    private void scheduleKillPerkDoubleTap(Player player, WeaponProfile w, ItemStack main) {
+        if (!WeaponKillPerkEffects.hasDoubleTap(main, plugin)) {
+            return;
+        }
+        if (w.fireMode() != FireMode.HITSCAN && w.fireMode() != FireMode.HITSCAN_BOW_CHARGE) {
+            return;
+        }
+        final String inst = readWeaponInstanceId(main);
+        final UUID pid = player.getUniqueId();
+        final String weaponName = w.name();
+        Bukkit.getScheduler().runTaskLater(plugin, () -> {
+            Player p = Bukkit.getPlayer(pid);
+            if (p == null || !p.isOnline()) {
+                return;
+            }
+            ItemStack mh = p.getInventory().getItemInMainHand();
+            if (!weaponName.equals(readWeaponId(mh))) {
+                return;
+            }
+            String inst2 = readWeaponInstanceId(mh);
+            if (inst == null || inst2 == null || !inst.equals(inst2)) {
+                return;
+            }
+            WeaponProfile hw = fromItem(mh);
+            if (hw == null) {
+                return;
+            }
+            if (hw.fireMode() != FireMode.HITSCAN && hw.fireMode() != FireMode.HITSCAN_BOW_CHARGE) {
+                return;
+            }
+            fireHitscan(p, hw, mh, System.currentTimeMillis(), -1.0, WeaponKillPerkEffects.DOUBLE_TAP_DAMAGE_SCALE);
+        }, 2L);
     }
 
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
@@ -1128,6 +1232,7 @@ public class WeaponManager implements Listener {
         WeaponUpgradeState st = WeaponUpgradeState.read(main, plugin);
         long minDelay = (long) (w.cooldownTicks() * 50L * WeaponUpgradeEffects.cooldownMultiplier(main, st));
         minDelay = (long) (minDelay * powerupBlockManager.rapidFireCooldownMultiplier(player));
+        minDelay = (long) (minDelay * WeaponKillPerkEffects.cooldownMultiplier(main, plugin));
         if (now - lastShotTimeMs.getOrDefault(player.getUniqueId(), 0L) < minDelay) {
             return;
         }
@@ -1150,6 +1255,7 @@ public class WeaponManager implements Listener {
         float pitch = w.soundPitch() * (float) (0.78 + 0.32 * charge01);
         world.playSound(eye, w.shootSound(), w.soundVolume(), pitch);
         fireHitscan(player, w, main, previousShotMs, charge01);
+        scheduleKillPerkDoubleTap(player, w, main);
         wearWeaponOnShot(player, player.getInventory().getItemInMainHand(), w);
         sendAmmoActionBar(player, w, main);
     }
@@ -1162,7 +1268,7 @@ public class WeaponManager implements Listener {
         }
     }
 
-    @EventHandler
+    @EventHandler(ignoreCancelled = true)
     public void onProjectileHit(ProjectileHitEvent event) {
         Projectile projectile = event.getEntity();
         PersistentDataContainer pdc = projectile.getPersistentDataContainer();
@@ -1315,7 +1421,7 @@ public class WeaponManager implements Listener {
                         applyOnHitUpgradeEffects(shooter, living, projSt, dealt, false);
                     }
                 }
-                living.getWorld().spawnParticle(Particle.ELECTRIC_SPARK, living.getLocation().add(0, 1, 0), 42, 0.35, 0.45, 0.35, 0.1);
+                living.getWorld().spawnParticle(Particle.ELECTRIC_SPARK, living.getLocation().add(0, 1, 0), 18, 0.35, 0.45, 0.35, 0.1);
                 living.getWorld().playSound(living.getLocation(), Sound.ENTITY_LIGHTNING_BOLT_THUNDER, 0.7f, 1.35f);
             }
             projectile.remove();
@@ -1340,8 +1446,8 @@ public class WeaponManager implements Listener {
             boolean mini = pdc.has(keyGasMini, PersistentDataType.BYTE)
                     && pdc.get(keyGasMini, PersistentDataType.BYTE) == (byte) 1;
             if (JerrycanUpgradeEffects.smokeCloud(jerry)) {
-                gw.spawnParticle(Particle.SMOKE, center, 90, 1.4, 0.45, 1.4, 0.05);
-                gw.spawnParticle(Particle.CAMPFIRE_COSY_SMOKE, center, 55, 1.1, 0.35, 1.1, 0.03);
+                gw.spawnParticle(Particle.SMOKE, center, 35, 1.4, 0.45, 1.4, 0.05);
+                gw.spawnParticle(Particle.CAMPFIRE_COSY_SMOKE, center, 20, 1.1, 0.35, 1.1, 0.03);
                 gw.playSound(center, Sound.ENTITY_GENERIC_EXTINGUISH_FIRE, 0.5f, 0.7f);
                 for (Player pl : gw.getPlayers()) {
                     if (!pl.getWorld().equals(gw) || pl.getLocation().distanceSquared(center) > 6.5 * 6.5) {
@@ -1453,17 +1559,21 @@ public class WeaponManager implements Listener {
     @EventHandler
     public void onQuit(PlayerQuitEvent event) {
         Player player = event.getPlayer();
+        UUID uuid = player.getUniqueId();
         cancelReload(player);
         player.setWalkSpeed(VANILLA_WALK_SPEED);
-        techShotCount.remove(player.getUniqueId());
-        recoilMeter.remove(player.getUniqueId());
-        minigunHeat.remove(player.getUniqueId());
-        minigunHeatLastMs.remove(player.getUniqueId());
-        BukkitTask nt = nuclearTasks.remove(player.getUniqueId());
+        techShotCount.remove(uuid);
+        recoilMeter.remove(uuid);
+        minigunHeat.remove(uuid);
+        minigunHeatLastMs.remove(uuid);
+        clipAmmo.remove(uuid);
+        lastShotTimeMs.remove(uuid);
+        lastTurretDeployMs.remove(uuid);
+        BukkitTask nt = nuclearTasks.remove(uuid);
         if (nt != null) {
             nt.cancel();
         }
-        dismantleDeployedTurret(player.getUniqueId());
+        dismantleDeployedTurret(uuid);
         cleanupVirtArrows(player);
     }
 
@@ -1578,7 +1688,8 @@ public class WeaponManager implements Listener {
     }
 
     private double effectiveSpreadDegrees(Player shooter, WeaponProfile w, ItemStack weapon, WeaponUpgradeState st, long previousShotMs) {
-        double base = w.effectiveSpread(shooter) * WeaponUpgradeEffects.spreadMultiplier(weapon, st);
+        double base = w.effectiveSpread(shooter) * WeaponUpgradeEffects.spreadMultiplier(weapon, st)
+                * WeaponKillPerkEffects.spreadMultiplier(weapon, plugin);
         double decayedRecoil = getDecayedRecoil(shooter, previousShotMs);
         double spread = (base + decayedRecoil * 0.092) * movementSpreadFactor(shooter);
         if (w.isMinigun()) {
@@ -1819,9 +1930,14 @@ public class WeaponManager implements Listener {
                     dir,
                     range,
                     0.35,
-                    entity -> entity instanceof LivingEntity && entity != shooter
+                    entity -> entity != shooter && (entity instanceof LivingEntity
+                            || (entity instanceof BlockDisplay bd && balloonChestManager != null && balloonChestManager.isBalloonChest(bd)))
             );
             drawBeam(shooter, eye, dir, range, world, w);
+            if (hit != null && hit.getHitEntity() instanceof BlockDisplay bd && balloonChestManager != null && balloonChestManager.isBalloonChest(bd)) {
+                balloonChestManager.tryPopFromHitscan(shooter, bd);
+                continue;
+            }
             if (hit != null && hit.getHitEntity() instanceof LivingEntity living) {
                 boolean headshot = weaponAllowsHeadshot(w) && isHeadshotPosition(living, hit.getHitPosition());
                 double mult = ThreadLocalRandom.current().nextDouble(0.88, 1.12);
@@ -1960,13 +2076,13 @@ public class WeaponManager implements Listener {
         double dmgMul = MortarUpgradeEffects.incendiaryDamageMul(mortarSt);
         double baseDmg = centerDamage * dmgMul;
         world.spawnParticle(Particle.EXPLOSION, center, 2, 0.18, 0.18, 0.18, 0.02);
-        world.spawnParticle(Particle.SMOKE, center, 28, 0.55, 0.35, 0.55, 0.04);
+        world.spawnParticle(Particle.SMOKE, center, 14, 0.55, 0.35, 0.55, 0.04);
         if (!mortarSt.isEmpty() && mortarSt.path() == MortarUpgradePath.ACID) {
-            world.spawnParticle(Particle.DRIPPING_DRIPSTONE_LAVA, center, 35, 0.65, 0.35, 0.65, 0.04);
-            world.spawnParticle(Particle.SNEEZE, center, 28, 0.55, 0.3, 0.55, 0.08);
-            world.spawnParticle(Particle.WITCH, center, 40, 0.7, 0.35, 0.7, 0.12);
-            world.spawnParticle(Particle.SPORE_BLOSSOM_AIR, center, 22, 0.5, 0.25, 0.5, 0.02);
-            world.spawnParticle(Particle.DUST, center, 45, 0.55, 0.28, 0.55, 0.02,
+            world.spawnParticle(Particle.DRIPPING_DRIPSTONE_LAVA, center, 15, 0.65, 0.35, 0.65, 0.04);
+            world.spawnParticle(Particle.SNEEZE, center, 12, 0.55, 0.3, 0.55, 0.08);
+            world.spawnParticle(Particle.WITCH, center, 18, 0.7, 0.35, 0.7, 0.12);
+            world.spawnParticle(Particle.SPORE_BLOSSOM_AIR, center, 10, 0.5, 0.25, 0.5, 0.02);
+            world.spawnParticle(Particle.DUST, center, 20, 0.55, 0.28, 0.55, 0.02,
                     new Particle.DustOptions(Color.fromRGB(55, 210, 95), 1.45f));
             world.playSound(center, Sound.BLOCK_BREWING_STAND_BREW, 0.9f, 0.65f);
             world.playSound(center, Sound.ENTITY_PLAYER_HURT_ON_FIRE, 0.35f, 1.8f);
@@ -2556,7 +2672,7 @@ public class WeaponManager implements Listener {
         }
         double radius = 5.85;
         world.spawnParticle(Particle.EXPLOSION, center, 5, 0.35, 0.35, 0.35, 0.02);
-        world.spawnParticle(Particle.BLOCK, center, 48, 0.85, 0.4, 0.85, 0.15, Material.STONE.createBlockData());
+        world.spawnParticle(Particle.BLOCK, center, 20, 0.85, 0.4, 0.85, 0.15, Material.STONE.createBlockData());
         world.playSound(center, Sound.ENTITY_GENERIC_EXPLODE, 1.05f, 0.82f);
         world.createExplosion(center, 0f, false, false);
         Player shooterPlayer = damager instanceof Player p ? p : null;
@@ -2703,10 +2819,14 @@ public class WeaponManager implements Listener {
     }
 
     private void fireHitscan(Player shooter, WeaponProfile w, ItemStack weapon, long previousShotMs) {
-        fireHitscan(shooter, w, weapon, previousShotMs, -1.0);
+        fireHitscan(shooter, w, weapon, previousShotMs, -1.0, 1.0);
     }
 
     private void fireHitscan(Player shooter, WeaponProfile w, ItemStack weapon, long previousShotMs, double charge01) {
+        fireHitscan(shooter, w, weapon, previousShotMs, charge01, 1.0);
+    }
+
+    private void fireHitscan(Player shooter, WeaponProfile w, ItemStack weapon, long previousShotMs, double charge01, double echoDamageScale) {
         WeaponUpgradeState st = hitscanUpgradeStateFor(w, weapon);
         RevolverUpgradeState rv = w == WeaponProfile.REVOLVER ? RevolverUpgradeState.read(weapon, plugin) : RevolverUpgradeState.NONE;
         Location eye = shooter.getEyeLocation();
@@ -2717,7 +2837,7 @@ public class WeaponManager implements Listener {
         double sMul = charged ? Math.max(0.28, 1.22 - 0.72 * charge01) : 1.0;
         double spread = effectiveSpreadDegrees(shooter, w, weapon, st, previousShotMs) * sMul;
         double range = w.effectiveRange(shooter) * WeaponUpgradeEffects.rangeMultiplier(weapon, st) * rMul;
-        double perPellet = w.damagePerPellet(shooter) * WeaponUpgradeEffects.damageMultiplier(weapon, st) * dMul;
+        double perPellet = w.damagePerPellet(shooter) * WeaponUpgradeEffects.damageMultiplier(weapon, st) * dMul * echoDamageScale;
 
         boolean techMarked = false;
         if (st.path() == WeaponUpgradePath.TECH && st.tier() >= 5) {
@@ -2737,9 +2857,14 @@ public class WeaponManager implements Listener {
                     dir,
                     range,
                     0.35,
-                    entity -> entity instanceof LivingEntity && entity != shooter
+                    entity -> entity != shooter && (entity instanceof LivingEntity
+                            || (entity instanceof BlockDisplay bd && balloonChestManager != null && balloonChestManager.isBalloonChest(bd)))
             );
             drawBeam(shooter, eye, dir, range, world, w);
+            if (hit != null && hit.getHitEntity() instanceof BlockDisplay bd && balloonChestManager != null && balloonChestManager.isBalloonChest(bd)) {
+                balloonChestManager.tryPopFromHitscan(shooter, bd);
+                continue;
+            }
             if (hit != null && hit.getHitEntity() instanceof LivingEntity living) {
                 Vector hp = hit.getHitPosition();
                 boolean blocked = hp != null && weaponShotBlockedBySafeLine(shooter, hp, world);
@@ -2803,8 +2928,10 @@ public class WeaponManager implements Listener {
                 }
             }
         }
-        powerupBlockManager.tryHitscanImpact(shooter, eye, eye.getDirection(), range);
-        registerRecoil(shooter, w, previousShotMs);
+        if (echoDamageScale >= 0.999) {
+            powerupBlockManager.tryHitscanImpact(shooter, eye, eye.getDirection(), range);
+            registerRecoil(shooter, w, previousShotMs);
+        }
     }
 
     private static boolean isHeadshotPosition(LivingEntity target, Vector hitWorldPos) {

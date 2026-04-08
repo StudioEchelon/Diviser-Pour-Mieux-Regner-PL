@@ -20,6 +20,10 @@ public class SkinCommand implements CommandExecutor {
 
     @Override
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
+        if (!sender.hasPermission("dpmr.skin")) {
+            sender.sendMessage(Component.text("Pas la permission.", NamedTextColor.RED));
+            return true;
+        }
         if (!(sender instanceof Player player)) {
             sender.sendMessage(Component.text("Commande reservee aux joueurs.", NamedTextColor.RED));
             return true;

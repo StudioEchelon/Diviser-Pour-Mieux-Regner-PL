@@ -3,18 +3,22 @@ package fr.dpmr.game;
 import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.Color;
 import org.bukkit.Material;
+import org.bukkit.Particle;
+import org.bukkit.enchantments.Enchantment;
+import org.bukkit.inventory.ItemFlag;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.LeatherArmorMeta;
+import org.bukkit.inventory.meta.ItemMeta;
 
 /**
  * Types de familiers de combat / soutien.
  */
 public enum PetType {
-    GUNNER("Mitrailleur", NamedTextColor.RED, Color.fromRGB(140, 30, 30), Material.CROSSBOW, Material.AIR),
-    MEDIC("Medic", NamedTextColor.GREEN, Color.fromRGB(60, 200, 90), Material.SPLASH_POTION, Material.GOLDEN_APPLE),
-    SNIPER("Tireur d'elite", NamedTextColor.GRAY, Color.fromRGB(80, 80, 90), Material.BOW, Material.AIR),
-    SCOUT("Eclaireur", NamedTextColor.YELLOW, Color.fromRGB(220, 200, 40), Material.CROSSBOW, Material.FEATHER),
-    BRUTE("Brute", NamedTextColor.DARK_RED, Color.fromRGB(90, 20, 20), Material.IRON_SWORD, Material.AIR);
+    GUNNER("Artilleur", NamedTextColor.RED, Color.fromRGB(160, 40, 55), Material.CROSSBOW, Material.AIR),
+    MEDIC("Soigneur", NamedTextColor.GREEN, Color.fromRGB(45, 195, 120), Material.SPLASH_POTION, Material.GOLDEN_APPLE),
+    SNIPER("Tireur d'élite", NamedTextColor.DARK_GRAY, Color.fromRGB(72, 82, 98), Material.BOW, Material.AIR),
+    SCOUT("Éclaireur", NamedTextColor.GOLD, Color.fromRGB(235, 205, 70), Material.CROSSBOW, Material.FEATHER),
+    BRUTE("Colosse", NamedTextColor.DARK_RED, Color.fromRGB(110, 28, 35), Material.IRON_SWORD, Material.AIR);
 
     private final String displayFr;
     private final NamedTextColor nameColor;
@@ -39,11 +43,36 @@ public enum PetType {
     }
 
     public ItemStack createMainHand() {
-        return new ItemStack(main);
+        ItemStack stack = new ItemStack(main);
+        styleHeldItem(stack);
+        return stack;
     }
 
     public ItemStack createOffHand() {
-        return off == Material.AIR ? null : new ItemStack(off);
+        if (off == Material.AIR) {
+            return null;
+        }
+        ItemStack stack = new ItemStack(off);
+        if (off != Material.FEATHER) {
+            styleHeldItem(stack);
+        }
+        return stack;
+    }
+
+    /** Particules / trajectoires alignées sur la teinte du familier. */
+    public Particle.DustOptions beamDust() {
+        return new Particle.DustOptions(leatherTint, 0.85f);
+    }
+
+    public Particle.DustOptions auraDust() {
+        return new Particle.DustOptions(leatherTint, 0.55f);
+    }
+
+    private void styleHeldItem(ItemStack stack) {
+        stack.editMeta((ItemMeta meta) -> {
+            meta.addEnchant(Enchantment.LUCK_OF_THE_SEA, 1, true);
+            meta.addItemFlags(ItemFlag.HIDE_ENCHANTS);
+        });
     }
 
     public ItemStack leatherPiece(Material piece) {

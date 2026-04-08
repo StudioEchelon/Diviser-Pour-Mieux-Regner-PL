@@ -35,6 +35,17 @@ public class HdvManager {
         }
     }
 
+    public void saveAsync() {
+        String data = yaml.saveToString();
+        plugin.getServer().getScheduler().runTaskAsynchronously(plugin, () -> {
+            try {
+                java.nio.file.Files.writeString(file.toPath(), data, java.nio.charset.StandardCharsets.UTF_8);
+            } catch (IOException e) {
+                plugin.getLogger().severe("Impossible de sauvegarder hdv.yml (async): " + e.getMessage());
+            }
+        });
+    }
+
     public List<HdvListing> allListings() {
         if (!yaml.isConfigurationSection("listings")) {
             return List.of();
@@ -95,7 +106,7 @@ public class HdvManager {
         }
         String encoded = ItemStackCodec.encode(item);
         if (encoded == null) {
-            seller.sendMessage(Component.text("Impossible d'enregistrer l'objet.", NamedTextColor.RED));
+            seller.sendMessage(Component.text("Could not register the item.", NamedTextColor.RED));
             return null;
         }
         String id = UUID.randomUUID().toString().substring(0, 8);
@@ -104,7 +115,7 @@ public class HdvManager {
         yaml.set(base + "price", price);
         yaml.set(base + "createdAtMs", System.currentTimeMillis());
         yaml.set(base + "item", encoded);
-        save();
+        saveAsync();
         return id;
     }
 
@@ -116,23 +127,23 @@ public class HdvManager {
             return false;
         }
         yaml.set("listings." + id, null);
-        save();
+        saveAsync();
         return true;
     }
 
     public boolean buy(Player buyer, String listingId) {
         HdvListing listing = get(listingId);
         if (listing == null) {
-            buyer.sendMessage(Component.text("Annonce introuvable.", NamedTextColor.RED));
+            buyer.sendMessage(Component.text("Listing not found.", NamedTextColor.RED));
             return false;
         }
         if (listing.seller().equals(buyer.getUniqueId())) {
-            buyer.sendMessage(Component.text("Tu ne peux pas acheter ta propre annonce.", NamedTextColor.RED));
+            buyer.sendMessage(Component.text("You can't buy your own listing.", NamedTextColor.RED));
             return false;
         }
         int pts = pointsManager.getPoints(buyer.getUniqueId());
         if (pts < listing.price()) {
-            buyer.sendMessage(Component.text("Pas assez de points (" + pts + "/" + listing.price() + ").", NamedTextColor.RED));
+            buyer.sendMessage(Component.text("Not enough points (" + pts + "/" + listing.price() + ").", NamedTextColor.RED));
             return false;
         }
 
@@ -145,7 +156,7 @@ public class HdvManager {
 
         // Retirer l'annonce puis transférer les points (anti double achat)
         if (!removeListing(listingId)) {
-            buyer.sendMessage(Component.text("Annonce deja vendue.", NamedTextColor.RED));
+            buyer.sendMessage(Component.text("Listing already sold.", NamedTextColor.RED));
             // rollback item
             buyer.getInventory().removeItem(listing.item().clone());
             return false;
@@ -153,7 +164,7 @@ public class HdvManager {
 
         pointsManager.addPoints(buyer.getUniqueId(), -listing.price());
         pointsManager.addPoints(listing.seller(), listing.price());
-        pointsManager.save();
+        pointsManager.saveAsync();
         buyer.sendMessage(Component.text("Achat reussi (-" + listing.price() + " pts)", NamedTextColor.GREEN));
         return true;
     }

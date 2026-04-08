@@ -1,6 +1,7 @@
 package fr.dpmr.util;
 
 import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.format.NamedTextColor;
 import net.kyori.adventure.text.format.TextColor;
 import net.kyori.adventure.text.format.TextDecoration;
 
@@ -10,6 +11,16 @@ import net.kyori.adventure.text.format.TextDecoration;
 public final class BrandingText {
 
     private BrandingText() {
+    }
+
+    /**
+     * Titre pour la liste des joueurs (tab) : bleu foncé + "Conquer" en rouge.
+     */
+    public static Component divideAndConquerTab() {
+        TextColor darkBlue = TextColor.fromHexString("#1B2F4A");
+        return Component.empty()
+                .append(Component.text("Divide & ", darkBlue, TextDecoration.BOLD))
+                .append(Component.text("Conquer", NamedTextColor.RED, TextDecoration.BOLD));
     }
 
     public static Component serverName() {

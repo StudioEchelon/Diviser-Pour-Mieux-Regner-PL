@@ -6,6 +6,7 @@ import fr.dpmr.command.LangCommand;
 import fr.dpmr.command.CosmeticsCommand;
 import fr.dpmr.command.SkinCommand;
 import fr.dpmr.command.ArmesCommand;
+import fr.dpmr.command.GunCommand;
 import fr.dpmr.command.BoutiqueCommand;
 import fr.dpmr.clan.ClanMenuListener;
 import fr.dpmr.command.ClanCommand;
@@ -30,6 +31,7 @@ import fr.dpmr.data.PointsManager;
 import fr.dpmr.game.ApocalypseManager;
 import fr.dpmr.game.BountyManager;
 import fr.dpmr.game.AutoFeedManager;
+import fr.dpmr.game.ClearLagManager;
 import fr.dpmr.game.CaptureMoneyZoneManager;
 import fr.dpmr.game.MedkitStationManager;
 import fr.dpmr.game.BandageManager;
@@ -37,6 +39,7 @@ import fr.dpmr.game.DynamicObjectiveManager;
 import fr.dpmr.game.SafeRespawnManager;
 import fr.dpmr.game.GameScoreboard;
 import fr.dpmr.game.LaunchpadManager;
+import fr.dpmr.game.BalloonChestManager;
 import fr.dpmr.game.LootManager;
 import fr.dpmr.game.TopHologramManager;
 import fr.dpmr.game.ModificationTableListener;
@@ -47,8 +50,11 @@ import fr.dpmr.game.RadarManager;
 import fr.dpmr.game.WallVisionManager;
 import fr.dpmr.game.PokerCardManager;
 import fr.dpmr.game.PowerupBlockManager;
+import fr.dpmr.game.WeaponKillPerkListener;
 import fr.dpmr.game.WeaponManager;
 import fr.dpmr.gui.GiveGui;
+import fr.dpmr.gui.GunGui;
+import fr.dpmr.gui.WeaponKillPerkGui;
 import fr.dpmr.gui.ShopGui;
 import fr.dpmr.gui.WeaponBrowseGui;
 import fr.dpmr.hdv.HdvGui;
@@ -70,7 +76,6 @@ import fr.dpmr.mastery.MasteryNametagManager;
 import fr.dpmr.trophy.TrophyManager;
 import fr.dpmr.vault.VaultManager;
 import fr.dpmr.npc.NpcSpawnerManager;
-import fr.dpmr.npc.WarWorldNpcManager;
 import fr.dpmr.armor.ArmorManager;
 import org.bukkit.command.PluginCommand;
 import org.bukkit.configuration.ConfigurationSection;
@@ -90,6 +95,7 @@ public final class DiviserPourMieuxRegnerPlugin extends JavaPlugin {
     private PointsManager pointsManager;
     private ClanManager clanManager;
     private LootManager lootManager;
+    private BalloonChestManager balloonChestManager;
     private PowerupBlockManager powerupBlockManager;
     private PokerCardManager pokerCardManager;
     private WeaponManager weaponManager;
@@ -111,7 +117,6 @@ public final class DiviserPourMieuxRegnerPlugin extends JavaPlugin {
     private LootboxManager lootboxManager;
     private SafeRespawnManager safeRespawnManager;
     private NpcSpawnerManager npcSpawnerManager;
-    private WarWorldNpcManager warWorldNpcManager;
     private ArmorManager armorManager;
     private PlayerHealthDisplayManager playerHealthDisplayManager;
     private AutoFeedManager autoFeedManager;
@@ -126,14 +131,20 @@ public final class DiviserPourMieuxRegnerPlugin extends JavaPlugin {
     private TrophyManager trophyManager;
     private MasteryNametagManager masteryNametagManager;
     private BountyManager bountyManager;
+    private ClearLagManager clearLagManager;
 
     @Override
     public void onEnable() {
         saveDefaultConfig();
         mergeConfigDefaultsFromJar();
 
+        clearLagManager = new ClearLagManager(this);
+        clearLagManager.start();
+
         languageStore = new PlayerLanguageStore(this);
         I18n.init(this, languageStore);
+
+        getServer().getPluginManager().registerEvents(new EntityPurgeListener(this), this);
 
         pointsManager = new PointsManager(this);
         armorManager = new ArmorManager(this);
@@ -161,6 +172,9 @@ public final class DiviserPourMieuxRegnerPlugin extends JavaPlugin {
         captureMoneyZoneManager = new CaptureMoneyZoneManager(this, pointsManager);
         captureMoneyZoneManager.start();
         lootManager = new LootManager(this, weaponManager, bandageManager, armorManager, languageStore);
+        balloonChestManager = new BalloonChestManager(this, lootManager, languageStore);
+        lootManager.setBalloonChestManager(balloonChestManager);
+        weaponManager.setBalloonChestManager(balloonChestManager);
         crateManager = new CrateManager(this, pointsManager, weaponManager, bandageManager);
         lootboxManager = new LootboxManager(this, pointsManager, weaponManager, bandageManager);
         kitProgressStore = new KitProgressStore(this);
@@ -168,8 +182,10 @@ public final class DiviserPourMieuxRegnerPlugin extends JavaPlugin {
         evolvingKitManager.start();
         safeRespawnManager = new SafeRespawnManager(this);
         npcSpawnerManager = new NpcSpawnerManager(this, pointsManager, weaponManager);
-        warWorldNpcManager = new WarWorldNpcManager(this, npcSpawnerManager, zoneManager, lootManager);
-        warWorldNpcManager.start();
+        int purged = npcSpawnerManager.killAllSpawnedFakeNpcs();
+        if (purged > 0) {
+            getLogger().info("Startup cleanup: removed " + purged + " orphaned DPMR NPC entities from previous session.");
+        }
         autoFeedManager = new AutoFeedManager(this);
         autoFeedManager.start();
         playerHealthDisplayManager = new PlayerHealthDisplayManager();
@@ -223,6 +239,7 @@ public final class DiviserPourMieuxRegnerPlugin extends JavaPlugin {
         getServer().getPluginManager().registerEvents(bountyManager, this);
         getServer().getPluginManager().registerEvents(dynamicObjectiveManager, this);
         getServer().getPluginManager().registerEvents(lootManager, this);
+        getServer().getPluginManager().registerEvents(balloonChestManager, this);
         getServer().getPluginManager().registerEvents(powerupBlockManager, this);
         getServer().getPluginManager().registerEvents(pokerCardManager, this);
         powerupBlockManager.startMarkers();
@@ -236,12 +253,18 @@ public final class DiviserPourMieuxRegnerPlugin extends JavaPlugin {
         GiveGui giveGui = new GiveGui(weaponManager, bandageManager, radarManager, wallVisionManager, launchpadManager, pokerCardManager);
         getServer().getPluginManager().registerEvents(giveGui, this);
 
+        GunGui gunGui = new GunGui(weaponManager);
+        getServer().getPluginManager().registerEvents(gunGui, this);
+        WeaponKillPerkGui weaponKillPerkGui = new WeaponKillPerkGui(this, weaponManager);
+        getServer().getPluginManager().registerEvents(weaponKillPerkGui, this);
+        getServer().getPluginManager().registerEvents(new WeaponKillPerkListener(this, weaponManager, weaponKillPerkGui), this);
+
         vaultManager = new VaultManager(this);
         getServer().getPluginManager().registerEvents(vaultManager, this);
 
         PluginCommand command = getCommand("dpmr");
         if (command != null) {
-            DpmrCommand dpmrCommand = new DpmrCommand(apocalypseManager, lootManager, weaponManager, bandageManager, giveGui, modificationTableRegistry, launchpadManager, zoneManager, familiarPetManager, crateManager, npcSpawnerManager, armorManager, safeRespawnManager, warWorldNpcManager, resourcePackManager, medkitStationManager, captureMoneyZoneManager, powerupBlockManager, pokerCardManager, vaultManager);
+            DpmrCommand dpmrCommand = new DpmrCommand(apocalypseManager, lootManager, balloonChestManager, weaponManager, bandageManager, giveGui, modificationTableRegistry, launchpadManager, zoneManager, familiarPetManager, crateManager, npcSpawnerManager, armorManager, safeRespawnManager, resourcePackManager, medkitStationManager, captureMoneyZoneManager, powerupBlockManager, pokerCardManager, vaultManager, skinGui, weaponKillPerkGui);
             command.setExecutor(dpmrCommand);
             command.setTabCompleter(dpmrCommand);
         } else {
@@ -252,6 +275,7 @@ public final class DiviserPourMieuxRegnerPlugin extends JavaPlugin {
         registerSimpleCommand("topdpmr", topCommand);
         registerSimpleCommand("leaderboard", topCommand);
         registerSimpleCommand("armes", new ArmesCommand(weaponBrowseGui));
+        registerSimpleCommand("gun", new GunCommand(gunGui));
         registerSimpleCommand("boutique", new BoutiqueCommand(shopGui));
         registerSimpleCommand("cosmetics", new CosmeticsCommand(cosmeticsGui, cosmeticsManager, pointsManager, weaponManager));
         registerSimpleCommand("skin", new SkinCommand(skinGui));
@@ -308,6 +332,15 @@ public final class DiviserPourMieuxRegnerPlugin extends JavaPlugin {
 
     @Override
     public void onDisable() {
+        if (gameScoreboard != null) {
+            gameScoreboard.stop();
+        }
+        if (weaponManager != null) {
+            weaponManager.stop();
+        }
+        if (cosmeticsManager != null) {
+            cosmeticsManager.stop();
+        }
         if (familiarPetManager != null) {
             familiarPetManager.stop();
         }
@@ -338,9 +371,6 @@ public final class DiviserPourMieuxRegnerPlugin extends JavaPlugin {
         }
         if (launchpadManager != null) {
             launchpadManager.save();
-        }
-        if (warWorldNpcManager != null) {
-            warWorldNpcManager.stop();
         }
         if (npcSpawnerManager != null) {
             npcSpawnerManager.shutdown();
@@ -376,6 +406,12 @@ public final class DiviserPourMieuxRegnerPlugin extends JavaPlugin {
         if (bountyManager != null) {
             bountyManager.stop();
         }
+        if (clearLagManager != null) {
+            clearLagManager.stop();
+        }
+        if (powerupBlockManager != null) {
+            powerupBlockManager.shutdownMarkers();
+        }
         getLogger().info("Diviser Pour Mieux Regner disabled.");
     }
 
@@ -409,6 +445,7 @@ public final class DiviserPourMieuxRegnerPlugin extends JavaPlugin {
             mergeConquerPassDefaults(cfg, def);
             mergeVaultDefaults(cfg, def);
             mergeBountyDefaults(cfg, def);
+            mergeClearLagDefaults(cfg, def);
             saveConfig();
             reloadConfig();
             getLogger().info("config.yml: merged jar defaults — weapons.custom-model-data +" + cmdAdded
@@ -568,6 +605,18 @@ public final class DiviserPourMieuxRegnerPlugin extends JavaPlugin {
         ConfigurationSection into = cfg.getConfigurationSection("bounty");
         if (into == null) {
             into = cfg.createSection("bounty");
+        }
+        mergeConfigSectionMissing(into, from);
+    }
+
+    private static void mergeClearLagDefaults(FileConfiguration cfg, YamlConfiguration def) {
+        ConfigurationSection from = def.getConfigurationSection("clear-lag");
+        if (from == null) {
+            return;
+        }
+        ConfigurationSection into = cfg.getConfigurationSection("clear-lag");
+        if (into == null) {
+            into = cfg.createSection("clear-lag");
         }
         mergeConfigSectionMissing(into, from);
     }

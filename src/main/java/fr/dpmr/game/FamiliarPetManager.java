@@ -3,9 +3,11 @@ package fr.dpmr.game;
 import fr.dpmr.zone.ZoneManager;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
+import net.kyori.adventure.text.format.TextDecoration;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.Material;
+import org.bukkit.NamespacedKey;
 import org.bukkit.Particle;
 import org.bukkit.Sound;
 import org.bukkit.GameMode;
@@ -18,6 +20,7 @@ import org.bukkit.event.Listener;
 import org.bukkit.event.entity.EntityDamageEvent;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.SkullMeta;
+import org.bukkit.persistence.PersistentDataType;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.scheduler.BukkitTask;
 import org.bukkit.util.RayTraceResult;
@@ -35,6 +38,7 @@ public class FamiliarPetManager implements Listener {
 
     private final JavaPlugin plugin;
     private final ZoneManager zoneManager;
+    private final NamespacedKey keyFamiliarPet;
     private final Map<UUID, PetState> pets = new HashMap<>();
     private BukkitTask task;
 
@@ -44,6 +48,7 @@ public class FamiliarPetManager implements Listener {
         long lastShotMs;
         long lastMedicPulseMs;
         long lastMeleeMs;
+        int auraTick;
 
         PetState(ArmorStand stand, PetType type) {
             this.stand = stand;
@@ -51,12 +56,14 @@ public class FamiliarPetManager implements Listener {
             this.lastShotMs = 0L;
             this.lastMedicPulseMs = 0L;
             this.lastMeleeMs = 0L;
+            this.auraTick = 0;
         }
     }
 
     public FamiliarPetManager(JavaPlugin plugin, ZoneManager zoneManager) {
         this.plugin = plugin;
         this.zoneManager = zoneManager;
+        this.keyFamiliarPet = new NamespacedKey(plugin, "dpmr_familiar_pet");
     }
 
     public void start() {
@@ -102,10 +109,17 @@ public class FamiliarPetManager implements Listener {
         as.setPersistent(true);
         as.setCustomNameVisible(true);
         as.customName(Component.text(type.displayFr(), type.nameColor()));
+        as.getPersistentDataContainer().set(keyFamiliarPet, PersistentDataType.BYTE, (byte) 1);
         applySkinAndGear(owner, as, type);
         pets.put(owner.getUniqueId(), new PetState(as, type));
-        owner.playSound(owner.getLocation(), Sound.ENTITY_IRON_GOLEM_REPAIR, 0.6f, 1.25f);
-        owner.sendMessage(Component.text("Familier invoque : " + type.displayFr(), NamedTextColor.GREEN));
+        World ow = owner.getWorld();
+        Location burst = spawn.clone().add(0, 0.5, 0);
+        ow.spawnParticle(Particle.DUST, burst, 28, 0.35, 0.45, 0.35, 0.04, type.beamDust());
+        ow.spawnParticle(Particle.END_ROD, burst, 10, 0.2, 0.35, 0.2, 0.02);
+        ow.playSound(owner.getLocation(), Sound.ENTITY_EVOKER_CAST_SPELL, 0.45f, 1.35f);
+        ow.playSound(owner.getLocation(), Sound.BLOCK_AMETHYST_BLOCK_RESONATE, 0.55f, 1.2f);
+        owner.sendMessage(Component.text("Familier invoqué : ", NamedTextColor.GRAY)
+                .append(Component.text(type.displayFr(), type.nameColor(), TextDecoration.ITALIC)));
     }
 
     private void applySkinAndGear(Player owner, ArmorStand as, PetType type) {
@@ -140,6 +154,7 @@ public class FamiliarPetManager implements Listener {
                 continue;
             }
             follow(owner, state.stand);
+            tickAmbientAura(state);
             switch (state.type) {
                 case GUNNER -> behaveGunner(owner, state);
                 case MEDIC -> behaveMedic(owner, state);
@@ -147,6 +162,19 @@ public class FamiliarPetManager implements Listener {
                 case SCOUT -> behaveScout(owner, state);
                 case BRUTE -> behaveBrute(owner, state);
             }
+        }
+    }
+
+    private void tickAmbientAura(PetState state) {
+        state.auraTick++;
+        if ((state.auraTick & 3) != 0) {
+            return;
+        }
+        World w = state.stand.getWorld();
+        Location c = state.stand.getLocation().add(0, 0.35, 0);
+        w.spawnParticle(Particle.DUST, c, 2, 0.22, 0.4, 0.22, 0.01, state.type.auraDust());
+        if (state.auraTick % 16 == 0) {
+            w.spawnParticle(Particle.WITCH, c.add(0, 0.15, 0), 1, 0.08, 0.1, 0.08, 0);
         }
     }
 
@@ -160,7 +188,8 @@ public class FamiliarPetManager implements Listener {
         } else {
             back.normalize().multiply(-1.0);
         }
-        Location target = o.clone().add(back.multiply(1.05)).add(0, 0.15, 0);
+        double bob = Math.sin(owner.getTicksLived() / 10.0) * 0.04;
+        Location target = o.clone().add(back.multiply(1.05)).add(0, 0.2 + bob, 0);
         target.setYaw(o.getYaw());
         target.setPitch(0);
 
@@ -196,21 +225,21 @@ public class FamiliarPetManager implements Listener {
             return;
         }
         long now = System.currentTimeMillis();
-        if (now - state.lastShotMs < 220) {
+        if (now - state.lastShotMs < 620) {
             return;
         }
-        LivingEntity target = findEnemyPlayer(owner, state.stand.getEyeLocation(), 18.0);
+        LivingEntity target = findEnemyPlayer(owner, state.stand, state.stand.getEyeLocation(), 13.0);
         if (target == null || !combatOk(owner, target.getLocation())) {
             return;
         }
         state.lastShotMs = now;
         face(state.stand, target.getEyeLocation());
-        shootHitscan(owner, state.stand, state.stand.getEyeLocation(), target, 18.0, 6.1, 2.2);
+        shootHitscan(owner, state.stand, state.stand.getEyeLocation(), target, 13.0, 1.55, 3.6, state.type);
     }
 
     private void behaveMedic(Player owner, PetState state) {
         long now = System.currentTimeMillis();
-        if (now - state.lastMedicPulseMs < 2000) {
+        if (now - state.lastMedicPulseMs < 3200) {
             return;
         }
         state.lastMedicPulseMs = now;
@@ -219,19 +248,14 @@ public class FamiliarPetManager implements Listener {
         if (w == null) {
             return;
         }
-        w.playSound(c, Sound.BLOCK_BEACON_POWER_SELECT, 0.35f, 1.6f);
-        w.spawnParticle(Particle.HEART, c, 6, 0.5, 0.35, 0.5, 0.02);
-        double r = 4.0;
-        for (Player p : w.getPlayers()) {
-            if (!p.isValid() || p.isDead()) {
-                continue;
-            }
-            if (p.getLocation().distanceSquared(c) > r * r) {
-                continue;
-            }
-            double max = p.getAttribute(org.bukkit.attribute.Attribute.GENERIC_MAX_HEALTH).getValue();
-            p.setHealth(Math.min(max, p.getHealth() + 1.0));
+        if (owner.getLocation().distanceSquared(c) > 5.5 * 5.5) {
+            return;
         }
+        w.playSound(c, Sound.BLOCK_BEACON_POWER_SELECT, 0.28f, 1.45f);
+        w.spawnParticle(Particle.HAPPY_VILLAGER, c, 5, 0.35, 0.4, 0.35, 0.02);
+        w.spawnParticle(Particle.DUST, c, 8, 0.4, 0.35, 0.4, 0.02, state.type.beamDust());
+        double max = owner.getAttribute(org.bukkit.attribute.Attribute.GENERIC_MAX_HEALTH).getValue();
+        owner.setHealth(Math.min(max, owner.getHealth() + 0.7));
     }
 
     private void behaveSniper(Player owner, PetState state) {
@@ -239,16 +263,16 @@ public class FamiliarPetManager implements Listener {
             return;
         }
         long now = System.currentTimeMillis();
-        if (now - state.lastShotMs < 780) {
+        if (now - state.lastShotMs < 2100) {
             return;
         }
-        LivingEntity target = findEnemyPlayer(owner, state.stand.getEyeLocation(), 28.0);
+        LivingEntity target = findEnemyPlayer(owner, state.stand, state.stand.getEyeLocation(), 21.0);
         if (target == null || !combatOk(owner, target.getLocation())) {
             return;
         }
         state.lastShotMs = now;
         face(state.stand, target.getEyeLocation());
-        shootHitscan(owner, state.stand, state.stand.getEyeLocation(), target, 28.0, 10.2, 0.9);
+        shootHitscan(owner, state.stand, state.stand.getEyeLocation(), target, 21.0, 2.85, 1.25, state.type);
     }
 
     private void behaveScout(Player owner, PetState state) {
@@ -256,16 +280,16 @@ public class FamiliarPetManager implements Listener {
             return;
         }
         long now = System.currentTimeMillis();
-        if (now - state.lastShotMs < 140) {
+        if (now - state.lastShotMs < 460) {
             return;
         }
-        LivingEntity target = findEnemyPlayer(owner, state.stand.getEyeLocation(), 14.0);
+        LivingEntity target = findEnemyPlayer(owner, state.stand, state.stand.getEyeLocation(), 9.0);
         if (target == null || !combatOk(owner, target.getLocation())) {
             return;
         }
         state.lastShotMs = now;
         face(state.stand, target.getEyeLocation());
-        shootHitscan(owner, state.stand, state.stand.getEyeLocation(), target, 14.0, 3.4, 3.8);
+        shootHitscan(owner, state.stand, state.stand.getEyeLocation(), target, 9.0, 0.95, 5.2, state.type);
     }
 
     private void behaveBrute(Player owner, PetState state) {
@@ -273,30 +297,31 @@ public class FamiliarPetManager implements Listener {
             return;
         }
         long now = System.currentTimeMillis();
-        if (now - state.lastMeleeMs < 400) {
+        if (now - state.lastMeleeMs < 950) {
             return;
         }
-        LivingEntity target = findEnemyPlayer(owner, state.stand.getLocation(), 4.0);
+        LivingEntity target = findEnemyPlayer(owner, state.stand, state.stand.getLocation().add(0, 0.8, 0), 3.5);
         if (target == null || !combatOk(owner, target.getLocation())) {
             return;
         }
-        if (target.getLocation().distanceSquared(state.stand.getLocation()) > 2.7 * 2.7) {
+        if (target.getLocation().distanceSquared(state.stand.getLocation()) > 2.35 * 2.35) {
             return;
         }
         state.lastMeleeMs = now;
         face(state.stand, target.getLocation().add(0, 1, 0));
         World w = state.stand.getWorld();
-        double dmg = 8.2 * ThreadLocalRandom.current().nextDouble(0.92, 1.08);
+        double dmg = 2.85 * ThreadLocalRandom.current().nextDouble(0.94, 1.06);
         boolean lethal = target instanceof Player victim && victim.getHealth() <= dmg;
         target.damage(dmg, owner);
         if (lethal && target instanceof Player victim) {
             announcePetKill(owner, victim);
         }
-        w.playSound(state.stand.getLocation(), Sound.ENTITY_PLAYER_ATTACK_STRONG, 0.55f, 0.85f);
-        w.spawnParticle(Particle.CRIT, target.getLocation().add(0, 1, 0), 14, 0.2, 0.35, 0.2, 0.02);
+        w.playSound(state.stand.getLocation(), Sound.ENTITY_PLAYER_ATTACK_CRIT, 0.42f, 0.72f);
+        w.spawnParticle(Particle.SWEEP_ATTACK, target.getLocation(), 1, 0, 0, 0, 0);
+        w.spawnParticle(Particle.CRIT, target.getLocation().add(0, 1, 0), 10, 0.18, 0.32, 0.18, 0.02);
     }
 
-    private LivingEntity findEnemyPlayer(Player owner, Location from, double range) {
+    private LivingEntity findEnemyPlayer(Player owner, LivingEntity looker, Location from, double range) {
         World w = from.getWorld();
         if (w == null) {
             return null;
@@ -311,7 +336,7 @@ public class FamiliarPetManager implements Listener {
             if (d > bestD) {
                 continue;
             }
-            if (!owner.hasLineOfSight(p)) {
+            if (!looker.hasLineOfSight(p)) {
                 continue;
             }
             bestD = d;
@@ -321,7 +346,7 @@ public class FamiliarPetManager implements Listener {
     }
 
     private void shootHitscan(Player owner, ArmorStand shooter, Location origin, LivingEntity target,
-                              double range, double baseDmg, double spreadDeg) {
+                              double range, double baseDmg, double spreadDeg, PetType petType) {
         World w = origin.getWorld();
         if (w == null) {
             return;
@@ -337,26 +362,51 @@ public class FamiliarPetManager implements Listener {
             return gm != GameMode.SPECTATOR && gm != GameMode.CREATIVE;
         });
 
-        drawBeam(w, origin, dir, range);
-        w.playSound(origin, Sound.ENTITY_ZOMBIE_ATTACK_IRON_DOOR, 0.35f, 1.75f);
+        drawBeam(w, origin, dir, range, petType.beamDust());
+        playPetShotSound(w, origin, petType);
 
         if (hit != null && hit.getHitEntity() instanceof LivingEntity living) {
-            double dmg = baseDmg * ThreadLocalRandom.current().nextDouble(0.9, 1.1);
+            double dmg = baseDmg * ThreadLocalRandom.current().nextDouble(0.92, 1.08);
             boolean lethal = living instanceof Player victim && victim.getHealth() <= dmg;
             living.damage(dmg, owner);
             if (lethal && living instanceof Player victim) {
                 announcePetKill(owner, victim);
             }
-            w.spawnParticle(Particle.DAMAGE_INDICATOR, living.getLocation().add(0, 1, 0), 4, 0.15, 0.25, 0.15, 0.01);
+            w.spawnParticle(Particle.DAMAGE_INDICATOR, living.getLocation().add(0, 1, 0), 3, 0.12, 0.22, 0.12, 0.01);
         }
     }
 
+    private static void playPetShotSound(World w, Location origin, PetType petType) {
+        Sound sound = Sound.ITEM_CROSSBOW_SHOOT;
+        float pitch = 1.18f;
+        float volume = 0.26f;
+        switch (petType) {
+            case SNIPER -> {
+                sound = Sound.ENTITY_ARROW_SHOOT;
+                pitch = 0.52f;
+                volume = 0.22f;
+            }
+            case SCOUT -> pitch = 1.42f;
+            case GUNNER -> pitch = 1.05f;
+            default -> {
+            }
+        }
+        w.playSound(origin, sound, volume, pitch);
+    }
+
     private void announcePetKill(Player owner, Player victim) {
-        Bukkit.broadcast(Component.text("✦ ", NamedTextColor.GOLD)
-                .append(Component.text(victim.getName(), NamedTextColor.YELLOW, net.kyori.adventure.text.format.TextDecoration.BOLD))
-                .append(Component.text(" a ete elimine par le familier de ", NamedTextColor.GRAY))
-                .append(Component.text(owner.getName(), NamedTextColor.AQUA, net.kyori.adventure.text.format.TextDecoration.BOLD))
-                .append(Component.text(" ✧", NamedTextColor.GOLD)));
+        Component msg = Component.text("✦ ", NamedTextColor.GOLD)
+                .append(Component.text(victim.getName(), NamedTextColor.YELLOW, TextDecoration.BOLD))
+                .append(Component.text(" a été terrassé par le familier de ", NamedTextColor.GRAY))
+                .append(Component.text(owner.getName(), NamedTextColor.AQUA, TextDecoration.BOLD))
+                .append(Component.text(" ✧", NamedTextColor.GOLD));
+        double rSq = 72 * 72;
+        Location o = owner.getLocation();
+        for (Player p : owner.getWorld().getPlayers()) {
+            if (p.getLocation().distanceSquared(o) <= rSq) {
+                p.sendMessage(msg);
+            }
+        }
     }
 
     @EventHandler(ignoreCancelled = true)
@@ -388,12 +438,12 @@ public class FamiliarPetManager implements Listener {
         return L.getDirection().normalize();
     }
 
-    private static void drawBeam(World world, Location start, Vector direction, double range) {
-        Vector step = direction.clone().normalize().multiply(0.45);
+    private static void drawBeam(World world, Location start, Vector direction, double range, Particle.DustOptions dust) {
+        Vector step = direction.clone().normalize().multiply(0.3);
         Location cursor = start.clone();
-        int max = Math.max(1, (int) (range / 0.45));
+        int max = Math.max(1, (int) (range / 0.3));
         for (int i = 0; i < max; i++) {
-            world.spawnParticle(Particle.SMOKE, cursor, 1, 0.02, 0.02, 0.02, 0.001);
+            world.spawnParticle(Particle.DUST, cursor, 1, 0.008, 0.008, 0.008, 0, dust);
             cursor.add(step);
         }
     }

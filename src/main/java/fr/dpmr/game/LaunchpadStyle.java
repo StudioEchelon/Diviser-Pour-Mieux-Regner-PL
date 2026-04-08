@@ -9,13 +9,13 @@ import java.util.Locale;
  */
 public enum LaunchpadStyle {
 
-    DOUX("DOUX", "Leger", NamedTextColor.GREEN, 0.38, 0.18, 0, 0.35f, 1.35f),
-    STANDARD("STANDARD", "Equilibre", NamedTextColor.YELLOW, 0.55, 0.45, 0, 0.45f, 1.2f),
-    BOOST("BOOST", "Fort", NamedTextColor.GOLD, 0.72, 0.72, 0, 0.55f, 1.05f),
+    DOUX("DOUX", "Light", NamedTextColor.GREEN, 0.38, 0.18, 0, 0.35f, 1.35f),
+    STANDARD("STANDARD", "Balanced", NamedTextColor.YELLOW, 0.55, 0.45, 0, 0.45f, 1.2f),
+    BOOST("BOOST", "Strong", NamedTextColor.GOLD, 0.72, 0.72, 0, 0.55f, 1.05f),
     FUSEE("FUSEE", "Vertical", NamedTextColor.RED, 1.08, 0.1, 25, 0.65f, 0.85f),
     DASH("DASH", "Horizontal", NamedTextColor.AQUA, 0.26, 1.12, 0, 0.5f, 1.45f),
-    ORBITAL("ORBITAL", "Arc max", NamedTextColor.LIGHT_PURPLE, 1.18, 0.48, 45, 0.7f, 0.95f),
-    MEGA("MEGA", "Ultime", NamedTextColor.DARK_PURPLE, 0.92, 0.95, 15, 0.75f, 0.75f),
+    ORBITAL("ORBITAL", "Max arc", NamedTextColor.LIGHT_PURPLE, 1.18, 0.48, 45, 0.7f, 0.95f),
+    MEGA("MEGA", "Ultimate", NamedTextColor.DARK_PURPLE, 0.92, 0.95, 15, 0.75f, 0.75f),
     /**
      * Propulsion tres longue portee + slow falling long + effet parachute (particules).
      */

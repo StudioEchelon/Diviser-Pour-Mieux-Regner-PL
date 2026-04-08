@@ -8,9 +8,9 @@ import java.util.Locale;
  * Trois voies exclusives (style Bloons TD) : une seule active par arme.
  */
 public enum WeaponUpgradePath {
-    ASSAULT("ASSAUT", "Déferlante", "Degats, cadence, ricochets, explosions"),
-    SURVIVAL("SURVIE", "Fortifiant", "Munitions, reload, vol de vie, economie"),
-    TECH("TECH", "Omniscient", "Precision, portee, ralentissement, chaines");
+    ASSAULT("ASSAULT", "Onslaught", "Damage, fire rate, ricochets, explosions"),
+    SURVIVAL("SURVIVAL", "Fortified", "Magazine, reload speed, lifesteal, tanking"),
+    TECH("TECH", "Omniscient", "Accuracy, range, slows, chain lightning");
 
     private final String shortLabel;
     private final String styleName;

@@ -139,9 +139,9 @@ public class BandageManager implements Listener {
 
     private static List<Component> lore(DpmrConsumable type) {
         if (type.heal()) {
-            return List.of(Component.text("Clic droit pour soigner", NamedTextColor.GRAY));
+            return List.of(Component.text("Right-click to heal", NamedTextColor.GRAY));
         }
-        return List.of(Component.text("Clic droit pour gagner des coeurs d'absorption", NamedTextColor.GRAY));
+        return List.of(Component.text("Right-click for absorption hearts", NamedTextColor.GRAY));
     }
 
     public DpmrConsumable getConsumableType(ItemStack item) {
@@ -293,7 +293,7 @@ public class BandageManager implements Listener {
         double max = maxHealthAttr != null ? maxHealthAttr.getValue() : 20.0;
         double next = Math.min(max, player.getHealth() + heal);
         if (next <= player.getHealth()) {
-            player.sendActionBar(Component.text("Tu as deja trop de vie pour te soigner.", NamedTextColor.GRAY));
+            player.sendActionBar(Component.text("You are already too healthy to heal.", NamedTextColor.GRAY));
             return;
         }
         player.setHealth(next);

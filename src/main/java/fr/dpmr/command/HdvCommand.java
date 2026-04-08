@@ -19,7 +19,7 @@ public class HdvCommand implements CommandExecutor {
     @Override
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
         if (!(sender instanceof Player player)) {
-            sender.sendMessage(Component.text("Commande reservee aux joueurs.", NamedTextColor.RED));
+            sender.sendMessage(Component.text("Players only.", NamedTextColor.RED));
             return true;
         }
         gui.open(player);

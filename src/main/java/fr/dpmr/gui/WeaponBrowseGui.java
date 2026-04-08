@@ -28,14 +28,14 @@ import java.util.List;
 public class WeaponBrowseGui implements Listener {
 
     private static final Component TITLE_HUB = Component.text()
-            .append(Component.text("◆ ", TextColor.color(0xF5C26B)))
-            .append(Component.text("Catalogue", TextColor.color(0xFFF5E6), TextDecoration.BOLD))
-            .append(Component.text(" DPMR", TextColor.color(0xB8B8C8)))
-            .append(Component.text(" ◆", TextColor.color(0xF5C26B)))
+            .append(Component.text("DPMR ", NamedTextColor.DARK_GRAY))
+            .append(Component.text("· ", TextColor.color(0x5A5A68)))
+            .append(Component.text("Weapon catalogue", TextColor.color(0xF2F2F2), TextDecoration.BOLD))
             .build();
 
     private static final int SLOT_BACK = 49;
     private static final int[] HUB_RARITY_SLOTS = {10, 11, 12, 13, 14, 15, 16};
+    private static final int[] HUB_RARITY_GLASS_SLOTS = {19, 20, 21, 22, 23, 24, 25};
     private static final int BUY_SHOWCASE_SLOT = 22;
     private static final int[] WEAPON_SLOTS = {
             10, 11, 12, 13, 14,
@@ -53,7 +53,11 @@ public class WeaponBrowseGui implements Listener {
         Inventory inv = WeaponCatalogHolder.create(54, TITLE_HUB, WeaponCatalogHolder.Kind.HUB, null);
         WeaponRarity[] order = WeaponRarity.values();
         for (int i = 0; i < order.length && i < HUB_RARITY_SLOTS.length; i++) {
-            inv.setItem(HUB_RARITY_SLOTS[i], BoutiqueUi.hubRarityButton(order[i], BoutiqueUi.countWeapons(order[i])));
+            int count = BoutiqueUi.countWeapons(order[i]);
+            inv.setItem(HUB_RARITY_SLOTS[i], BoutiqueUi.hubRarityButton(order[i], count));
+            if (i < HUB_RARITY_GLASS_SLOTS.length) {
+                inv.setItem(HUB_RARITY_GLASS_SLOTS[i], BoutiqueUi.hubRarityTierPane(order[i], count));
+            }
         }
         inv.setItem(SLOT_BACK, closeItem());
         BoutiqueUi.fillBackdrop(inv);
@@ -63,7 +67,8 @@ public class WeaponBrowseGui implements Listener {
 
     public void openRarityPage(Player player, WeaponRarity rarity) {
         Inventory inv = WeaponCatalogHolder.create(54,
-                Component.text("DPMR — ", NamedTextColor.DARK_GRAY)
+                Component.text("Browse ", NamedTextColor.DARK_GRAY)
+                        .append(Component.text("· ", TextColor.color(0x5A5A68)))
                         .append(Component.text(rarity.displayFr(), rarity.color(), TextDecoration.BOLD)),
                 WeaponCatalogHolder.Kind.BROWSE_CATEGORY, rarity);
         List<WeaponProfile> list = new ArrayList<>();
@@ -90,7 +95,7 @@ public class WeaponBrowseGui implements Listener {
     private static ItemStack backToHub() {
         ItemStack i = new ItemStack(Material.ARROW);
         ItemMeta m = i.getItemMeta();
-        m.displayName(Component.text("← Retour categories", NamedTextColor.YELLOW));
+        m.displayName(Component.text("← Back to tiers", NamedTextColor.YELLOW));
         i.setItemMeta(m);
         return i;
     }
@@ -98,7 +103,7 @@ public class WeaponBrowseGui implements Listener {
     private static ItemStack closeItem() {
         ItemStack i = new ItemStack(Material.BARRIER);
         ItemMeta m = i.getItemMeta();
-        m.displayName(Component.text("Fermer", NamedTextColor.RED, TextDecoration.BOLD));
+        m.displayName(Component.text("Close", NamedTextColor.RED, TextDecoration.BOLD));
         i.setItemMeta(m);
         return i;
     }
@@ -137,6 +142,12 @@ public class WeaponBrowseGui implements Listener {
             WeaponRarity[] order = WeaponRarity.values();
             for (int i = 0; i < HUB_RARITY_SLOTS.length && i < order.length; i++) {
                 if (slot == HUB_RARITY_SLOTS[i]) {
+                    openRarityPage(player, order[i]);
+                    return;
+                }
+            }
+            for (int i = 0; i < HUB_RARITY_GLASS_SLOTS.length && i < order.length; i++) {
+                if (slot == HUB_RARITY_GLASS_SLOTS[i]) {
                     openRarityPage(player, order[i]);
                     return;
                 }

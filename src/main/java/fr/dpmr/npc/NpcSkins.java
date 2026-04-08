@@ -42,6 +42,7 @@ public final class NpcSkins {
         String[] pool = switch (k) {
             case "ZOMBIE" -> ZOMBIE_HASHES;
             case "RAIDER" -> RAIDER_HASHES;
+            case "PATROL" -> MILITARY_HASHES;
             default -> MILITARY_HASHES;
         };
         if (pool.length == 0) {

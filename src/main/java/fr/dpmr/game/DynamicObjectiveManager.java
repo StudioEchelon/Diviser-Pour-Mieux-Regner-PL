@@ -367,7 +367,7 @@ public class DynamicObjectiveManager implements Listener {
             case ELIMINATION_RUSH -> {
                 if (winner != null) {
                     pointsManager.addPoints(winner.getUniqueId(), active.winnerPoints);
-                    pointsManager.save();
+                    pointsManager.saveAsync();
                     Bukkit.broadcast(Component.text(
                             "[DPMR] " + winner.getName() + " remporte l'objectif Rush PvP (+" + active.winnerPoints + " pts) !",
                             NamedTextColor.GOLD));
@@ -377,7 +377,7 @@ public class DynamicObjectiveManager implements Listener {
                 for (Player p : Bukkit.getOnlinePlayers()) {
                     pointsManager.addPoints(p.getUniqueId(), active.participationPoints);
                 }
-                pointsManager.save();
+                pointsManager.saveAsync();
                 Bukkit.broadcast(Component.text(
                         "[DPMR] Rafle de monstres reussie ! +" + active.participationPoints + " pts pour chaque survivant en ligne.",
                         NamedTextColor.GREEN));
@@ -386,7 +386,7 @@ public class DynamicObjectiveManager implements Listener {
                 for (Player p : Bukkit.getOnlinePlayers()) {
                     pointsManager.addPoints(p.getUniqueId(), active.zonePoints);
                 }
-                pointsManager.save();
+                pointsManager.saveAsync();
                 Bukkit.broadcast(Component.text(
                         "[DPMR] Zone tenue ! +" + active.zonePoints + " pts pour tout le monde.",
                         NamedTextColor.YELLOW));
@@ -444,7 +444,7 @@ public class DynamicObjectiveManager implements Listener {
             return "Objectifs: apocalypse arretee.";
         }
         if (!plugin.getConfig().getBoolean("objectives.enabled", true)) {
-            return "Objectifs: desactives (config).";
+            return "Objectives: disabled (config).";
         }
         if (!hasActiveObjective()) {
             return "Objectifs: en attente du prochain.";

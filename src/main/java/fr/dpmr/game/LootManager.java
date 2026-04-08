@@ -12,23 +12,21 @@ import org.bukkit.*;
 import org.bukkit.NamespacedKey;
 import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
-import org.bukkit.block.Chest;
+import org.bukkit.block.data.BlockData;
+import org.bukkit.block.data.Waterlogged;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.entity.ArmorStand;
 import org.bukkit.entity.BlockDisplay;
-import org.bukkit.entity.HumanEntity;
 import org.bukkit.entity.Item;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.Action;
 import org.bukkit.event.block.BlockPlaceEvent;
-import org.bukkit.event.inventory.InventoryCloseEvent;
 import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.event.entity.EntityPickupItemEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.inventory.EquipmentSlot;
-import org.bukkit.inventory.InventoryView;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
@@ -62,6 +60,7 @@ public class LootManager implements Listener {
     private final BandageManager bandageManager;
     private final ArmorManager armorManager;
     private final PlayerLanguageStore languageStore;
+    private BalloonChestManager balloonChestManager;
     private BukkitTask airdropTask;
     private BukkitTask boostTask;
     private BukkitTask chestSpawnTask;
@@ -69,11 +68,9 @@ public class LootManager implements Listener {
     private final Set<String> zoneChestKeys = new HashSet<>();
     private final Set<String> filledThisChest = new HashSet<>();
     private final Map<String, Long> configuredChestCooldownUntil = new HashMap<>();
-    private final Map<String, WeaponRarity> configuredChestRarity = new HashMap<>();
     private final Map<String, ArmorStand> configuredChestHolograms = new HashMap<>();
     private BukkitTask configuredChestHudTask;
 
-    private final Map<String, Inventory> airdropLoot = new HashMap<>();
     private final Set<String> airdropOpened = new HashSet<>();
     private final Map<String, BukkitTask> airdropOpenTasks = new HashMap<>();
     private final Map<String, BlockDisplay> airdropFallingDisplays = new HashMap<>();
@@ -82,7 +79,7 @@ public class LootManager implements Listener {
 
     private enum AirdropType {
         TACTIQUE("Tactique", NamedTextColor.GOLD, Material.CHEST, Particle.CLOUD, Particle.EXPLOSION, Sound.BLOCK_ANVIL_LAND),
-        MEDICAL("Medical", NamedTextColor.GREEN, Material.MOSS_BLOCK, Particle.HAPPY_VILLAGER, Particle.TOTEM_OF_UNDYING, Sound.BLOCK_AMETHYST_BLOCK_RESONATE),
+        MEDICAL("Medical", NamedTextColor.GREEN, Material.TRAPPED_CHEST, Particle.HAPPY_VILLAGER, Particle.TOTEM_OF_UNDYING, Sound.BLOCK_AMETHYST_BLOCK_RESONATE),
         TECHNO("Techno", NamedTextColor.AQUA, Material.ENDER_CHEST, Particle.ELECTRIC_SPARK, Particle.END_ROD, Sound.BLOCK_BEACON_ACTIVATE);
 
         final String label;
@@ -113,6 +110,40 @@ public class LootManager implements Listener {
         this.languageStore = languageStore;
     }
 
+    public void setBalloonChestManager(BalloonChestManager balloonChestManager) {
+        this.balloonChestManager = balloonChestManager;
+    }
+
+    public Location pickBalloonChestSpawnSurface(Player nearPlayer) {
+        if (nearPlayer != null && nearPlayer.getWorld() != null) {
+            Location base = nearPlayer.getLocation().getBlock().getLocation();
+            Location raw = base.clone().add(ThreadLocalRandom.current().nextInt(-20, 21), 0, ThreadLocalRandom.current().nextInt(-20, 21));
+            return clampAirdropToGround(raw);
+        }
+        return clampAirdropToGround(pickAirdropTarget());
+    }
+
+    public LootChestTier parseBalloonChestLootTier() {
+        String t = plugin.getConfig().getString("loot.balloon-chest.loot-tier", "TIER_2");
+        try {
+            return LootChestTier.valueOf(t.trim().toUpperCase(Locale.ROOT));
+        } catch (IllegalArgumentException e) {
+            return LootChestTier.TIER_2;
+        }
+    }
+
+    public void grantBalloonChestLoot(Player player, Location entityLoc, LootChestTier tier) {
+        ItemStack loot = generateSingleChestLoot(tier);
+        if (loot != null && !loot.getType().isAir()) {
+            giveLootToPlayer(player, loot.clone());
+            Location popupBase = new Location(entityLoc.getWorld(),
+                    Math.floor(entityLoc.getX()), Math.floor(entityLoc.getY()), Math.floor(entityLoc.getZ()));
+            showLootPopupAboveChest(popupBase, player, List.of(loot));
+            player.playSound(player.getLocation(), Sound.BLOCK_CHEST_OPEN, 0.9f, 1.15f);
+            player.playSound(player.getLocation(), Sound.ENTITY_ITEM_PICKUP, 0.55f, 1.15f);
+        }
+    }
+
     private static String airdropTypeMessageKey(AirdropType type) {
         return switch (type) {
             case TACTIQUE -> "airdrop.type_tactical";
@@ -126,14 +157,36 @@ public class LootManager implements Listener {
     }
 
     public ItemStack createPortableLootChestItem(int amount) {
-        ItemStack item = new ItemStack(Material.CHEST, Math.max(1, Math.min(64, amount)));
+        return createPortableLootChestItem(amount, 1);
+    }
+
+    /**
+     * Coffre portable : 1–3 bois / piégé / ender ; 4–6 maritime (barrel / smoker / blast furnace, dans l'eau).
+     */
+    public ItemStack createPortableLootChestItem(int amount, int tier) {
+        LootChestTier lt = LootChestTier.fromPortableTier(tier);
+        int t = Math.max(1, Math.min(6, tier));
+        ItemStack item = new ItemStack(lt.material(), Math.max(1, Math.min(64, amount)));
         ItemMeta meta = item.getItemMeta();
-        meta.displayName(Component.text("Coffre Loot DPMR", NamedTextColor.GOLD, TextDecoration.BOLD));
-        meta.lore(List.of(
-                Component.text("Pose-le pour enregistrer un coffre DPMR.", NamedTextColor.GRAY),
-                Component.text("Le coffre se remplira a l'ouverture.", NamedTextColor.DARK_GRAY)
-        ));
-        meta.getPersistentDataContainer().set(keyPortableLootChest, PersistentDataType.BYTE, (byte) 1);
+        if (lt.isMaritime()) {
+            String title = switch (t) {
+                case 5 -> "Maritime Chest II";
+                case 6 -> "Maritime Chest III";
+                default -> "Maritime Chest";
+            };
+            meta.displayName(Component.text(title, lt.labelColor(), TextDecoration.BOLD));
+            meta.lore(List.of(
+                    Component.text("Place: must replace a water block; registers this DPMR chest.", NamedTextColor.GRAY),
+                    Component.text("Right-click: loot (no GUI); higher maritime tiers = more rolls.", NamedTextColor.DARK_GRAY)
+            ));
+        } else {
+            meta.displayName(Component.text("Coffre loot DPMR (" + lt.roman() + ")", lt.labelColor(), TextDecoration.BOLD));
+            meta.lore(List.of(
+                    Component.text("Pose : enregistre un coffre DPMR à cet emplacement.", NamedTextColor.GRAY),
+                    Component.text("Clic : 1 loot aléatoire (sans GUI), affiché au-dessus.", NamedTextColor.DARK_GRAY)
+            ));
+        }
+        meta.getPersistentDataContainer().set(keyPortableLootChest, PersistentDataType.BYTE, (byte) t);
         item.setItemMeta(meta);
         return item;
     }
@@ -143,7 +196,7 @@ public class LootManager implements Listener {
         ItemMeta meta = item.getItemMeta();
         meta.displayName(Component.text("AxeChest", NamedTextColor.RED, TextDecoration.BOLD));
         meta.lore(List.of(
-                Component.text("Clic droit sur un LootChest pour casser son spawn.", NamedTextColor.GRAY)
+                Component.text("Right-click a LootChest to remove its spawn.", NamedTextColor.GRAY)
         ));
         meta.getPersistentDataContainer().set(keyChestBreakerAxe, PersistentDataType.BYTE, (byte) 1);
         item.setItemMeta(meta);
@@ -172,7 +225,8 @@ public class LootManager implements Listener {
                 String plain = PlainTextComponentSerializer.plainText()
                         .serialize(stand.customName())
                         .toLowerCase(Locale.ROOT);
-                if (plain.contains("lootchest") || plain.contains("airdrop")) {
+                if (plain.contains("lootchest") || plain.contains("airdrop") || plain.contains("coffre")
+                        || plain.contains("maritime")) {
                     if (removeArmorStandSafe(stand)) {
                         removed++;
                     }
@@ -201,20 +255,33 @@ public class LootManager implements Listener {
         airdropTask = Bukkit.getScheduler().runTaskTimer(plugin, this::spawnAirdrop, airdropEvery * 20L, airdropEvery * 20L);
         boostTask = Bukkit.getScheduler().runTaskTimer(plugin, this::spawnBoost, boostEvery * 20L, boostEvery * 20L);
         chestSpawnTask = Bukkit.getScheduler().runTaskTimer(plugin, this::trySpawnZoneChest, chestSpawnEvery * 20L, chestSpawnEvery * 20L);
+        if (balloonChestManager != null) {
+            balloonChestManager.startSchedule();
+        }
     }
 
+    /**
+     * Garantit que toutes les armes du catalogue sont presentes dans les listes config
+     * (merge sans retirer d'IDs custom). Les coffres utilisent des poids de rarete decroissants
+     * (COMMON le plus frequent, GHOST le plus rare — voir {@code rollRarityForChestTier}).
+     */
     private void sanitizeConfiguredWeaponPools() {
-        List<String> chestPool = Arrays.stream(WeaponProfile.values())
-                .filter(w -> w.rarity() != WeaponRarity.GHOST)
-                .map(Enum::name)
-                .toList();
-        List<String> legendaryPool = Arrays.stream(WeaponProfile.values())
-                .filter(w -> w.rarity() == WeaponRarity.LEGENDARY || w.rarity() == WeaponRarity.GHOST)
-                .map(Enum::name)
-                .toList();
         FileConfiguration cfg = plugin.getConfig();
-        cfg.set("loot.chest-weapons", chestPool);
-        cfg.set("loot.legendary-weapons", legendaryPool);
+        List<String> allIds = Arrays.stream(WeaponProfile.values()).map(Enum::name).toList();
+        LinkedHashSet<String> chestMerged = new LinkedHashSet<>(cfg.getStringList("loot.chest-weapons"));
+        for (String id : allIds) {
+            chestMerged.add(id);
+        }
+        cfg.set("loot.chest-weapons", new ArrayList<>(chestMerged));
+
+        LinkedHashSet<String> legMerged = new LinkedHashSet<>(cfg.getStringList("loot.legendary-weapons"));
+        for (WeaponProfile w : WeaponProfile.values()) {
+            if (w.rarity() == WeaponRarity.LEGENDARY || w.rarity() == WeaponRarity.MYTHIC
+                    || w.rarity() == WeaponRarity.GHOST) {
+                legMerged.add(w.name());
+            }
+        }
+        cfg.set("loot.legendary-weapons", new ArrayList<>(legMerged));
         plugin.saveConfig();
     }
 
@@ -237,7 +304,6 @@ public class LootManager implements Listener {
         zoneChestKeys.clear();
         filledThisChest.clear();
         configuredChestCooldownUntil.clear();
-        configuredChestRarity.clear();
         if (configuredChestHudTask != null) {
             configuredChestHudTask.cancel();
             configuredChestHudTask = null;
@@ -261,6 +327,9 @@ public class LootManager implements Listener {
         }
         airdropFallingDisplays.clear();
         airdropTypes.clear();
+        if (balloonChestManager != null) {
+            balloonChestManager.stopSchedule();
+        }
     }
 
     public void openAdminMenu(Player player) {
@@ -291,8 +360,8 @@ public class LootManager implements Listener {
         switch (clicked.getType()) {
             case CHEST -> {
                 Block target = player.getTargetBlockExact(6);
-                if (target == null || target.getType() != Material.CHEST) {
-                    player.sendMessage(Component.text("Regarde un coffre a 6 blocs max.", NamedTextColor.RED));
+                if (target == null || !LootChestTier.isLootChestBlock(target.getType())) {
+                    player.sendMessage(Component.text("Regarde un coffre DPMR (bois, piégé, ender, tonneau, fumoir, haut fourneau) à moins de 6 blocs.", NamedTextColor.RED));
                     return;
                 }
                 saveLocation("loot.weapon-chests", target.getLocation());
@@ -310,7 +379,7 @@ public class LootManager implements Listener {
                 plugin.getConfig().set("loot.chest-spawn-zone.enabled", true);
                 plugin.getConfig().set("loot.chest-spawn-zone.world", player.getWorld().getName());
                 plugin.saveConfig();
-                player.sendMessage(Component.text("Zone coffre activee sur le monde actuel. Mets 2 coins avec les panneaux du menu.", NamedTextColor.GREEN));
+                player.sendMessage(Component.text("Chest zone active on this world. Set 2 corners with the menu signs.", NamedTextColor.GREEN));
             }
             case CROSSBOW -> addHeldWeapon(player, "loot.chest-weapons");
             case NETHERITE_SWORD -> addHeldWeapon(player, "loot.legendary-weapons");
@@ -324,7 +393,7 @@ public class LootManager implements Listener {
 
     @EventHandler
     public void onPortableLootChestPlace(BlockPlaceEvent event) {
-        if (event.getBlockPlaced().getType() != Material.CHEST) {
+        if (!LootChestTier.isLootChestBlock(event.getBlockPlaced().getType())) {
             return;
         }
         ItemStack inHand = event.getItemInHand();
@@ -332,13 +401,29 @@ public class LootManager implements Listener {
             return;
         }
         Byte tag = inHand.getItemMeta().getPersistentDataContainer().get(keyPortableLootChest, PersistentDataType.BYTE);
-        if (tag == null || tag != (byte) 1) {
+        if (tag == null || tag < 1 || tag > 6) {
             return;
         }
-        saveLocation("loot.weapon-chests", event.getBlockPlaced().getLocation());
-        refreshConfiguredChestHolograms();
         Player player = event.getPlayer();
-        player.sendMessage(Component.text("Coffre DPMR place et enregistre.", NamedTextColor.GREEN));
+        if (tag >= 4 && tag <= 6) {
+            if (event.getBlockReplacedState().getType() != Material.WATER) {
+                event.setCancelled(true);
+                player.sendMessage(Component.text("Maritime Chests must be placed inside water (replace a water block).", NamedTextColor.RED));
+                return;
+            }
+            Block placed = event.getBlockPlaced();
+            BlockData data = placed.getBlockData();
+            if (data instanceof Waterlogged wl) {
+                wl.setWaterlogged(true);
+                placed.setBlockData(wl);
+            }
+        }
+        saveLocation("loot.weapon-chests", event.getBlockPlaced().getLocation());
+        if (tag >= 4 && tag <= 6) {
+            player.sendMessage(Component.text("Maritime Chest placed and registered.", NamedTextColor.GREEN));
+        } else {
+            player.sendMessage(Component.text("Coffre DPMR place et enregistre.", NamedTextColor.GREEN));
+        }
         player.playSound(player.getLocation(), Sound.BLOCK_NOTE_BLOCK_PLING, 0.8f, 1.35f);
     }
 
@@ -360,7 +445,7 @@ public class LootManager implements Listener {
             return;
         }
         Block block = event.getClickedBlock();
-        if (block.getType() != Material.CHEST) {
+        if (!LootChestTier.isLootChestBlock(block.getType())) {
             return;
         }
         if (isChestBreakerAxe(event.getItem())) {
@@ -379,77 +464,242 @@ public class LootManager implements Listener {
             if (left > 0L) {
                 event.setCancelled(true);
                 long sec = Math.max(1L, (long) Math.ceil(left / 1000.0));
-                event.getPlayer().sendActionBar(Component.text("LootChest recharge dans " + sec + "s", NamedTextColor.YELLOW));
+                event.getPlayer().sendActionBar(Component.text("Coffre loot : " + sec + "s", NamedTextColor.YELLOW));
                 return;
             }
         }
         Set<String> structureKeys = connectedChestKeys(block);
-        if (structureKeys.stream().noneMatch(filledThisChest::contains)) {
-            if (block.getState() instanceof Chest chest) {
-                WeaponRarity forcedRarity = configuredKey != null ? configuredChestRarity.get(configuredKey) : null;
-                fillLootChest(chest.getInventory(), forcedRarity);
-                filledThisChest.addAll(structureKeys);
+        if (structureKeys.stream().anyMatch(filledThisChest::contains)) {
+            event.setCancelled(true);
+            return;
+        }
+        event.setCancelled(true);
+        Player player = event.getPlayer();
+        filledThisChest.addAll(structureKeys);
+        LootChestTier tier = LootChestTier.fromMaterial(block.getType());
+        List<ItemStack> bundle = generateChestLootBundle(tier);
+        if (bundle.isEmpty()) {
+            for (String k : structureKeys) {
+                filledThisChest.remove(k);
             }
+            player.sendMessage(Component.text("Rien dans ce coffre.", NamedTextColor.RED));
+            return;
+        }
+        for (ItemStack loot : bundle) {
+            giveLootToPlayer(player, loot.clone());
+        }
+        List<String> cfgChests = plugin.getConfig().getStringList("loot.weapon-chests");
+        boolean touchesConfigured = structureKeys.stream().anyMatch(cfgChests::contains);
+        String canonical = touchesConfigured
+                ? structureKeys.stream().filter(cfgChests::contains).min(String::compareTo).orElse(null)
+                : null;
+        showLootPopupAboveChest(loc, player, bundle);
+        if (tier.isMaritime()) {
+            player.playSound(player.getLocation(), Sound.BLOCK_BARREL_OPEN, 0.85f, 1.05f);
+            block.getWorld().spawnParticle(Particle.SPLASH, loc.clone().add(0.5, 0.85, 0.5), 14, 0.35, 0.2, 0.35, 0.02);
+            block.getWorld().spawnParticle(Particle.BUBBLE_POP, loc.clone().add(0.5, 0.9, 0.5), 10, 0.3, 0.15, 0.3, 0.01);
+            if (block.getType() == Material.SMOKER) {
+                block.getWorld().spawnParticle(Particle.CAMPFIRE_COSY_SMOKE, loc.clone().add(0.5, 1.0, 0.5), 14, 0.35, 0.15, 0.35, 0.01);
+            } else if (block.getType() == Material.BLAST_FURNACE) {
+                block.getWorld().spawnParticle(Particle.SMALL_FLAME, loc.clone().add(0.5, 0.85, 0.5), 10, 0.3, 0.12, 0.3, 0.01);
+            }
+        } else {
+            player.playSound(player.getLocation(), Sound.BLOCK_CHEST_OPEN, 0.85f, 1.1f);
+        }
+        player.playSound(player.getLocation(), Sound.ENTITY_ITEM_PICKUP, 0.55f, 1.15f);
+        finishDpmrChestAfterLoot(block, player, structureKeys, touchesConfigured, canonical);
+    }
+
+    private void giveLootToPlayer(Player player, ItemStack loot) {
+        HashMap<Integer, ItemStack> overflow = player.getInventory().addItem(loot);
+        for (ItemStack drop : overflow.values()) {
+            player.getWorld().dropItemNaturally(player.getLocation(), drop);
         }
     }
 
-    @EventHandler
-    public void onChestClose(InventoryCloseEvent event) {
-        HumanEntity human = event.getPlayer();
-        if (!(human instanceof Player)) {
+    private void showLootPopupAboveChest(Location chestBlockLoc, Player viewer, List<ItemStack> loots) {
+        if (loots == null || loots.isEmpty()) {
             return;
         }
-        Inventory inv = event.getInventory();
-        Location holderLoc = inv.getLocation();
-        if (holderLoc == null) {
+        World world = chestBlockLoc.getWorld();
+        if (world == null) {
             return;
         }
-        Block block = holderLoc.getBlock();
-        if (block.getType() != Material.CHEST) {
-            return;
+        double baseY = 1.55;
+        double step = 0.3;
+        for (int i = 0; i < loots.size(); i++) {
+            ItemStack loot = loots.get(i);
+            Location at = chestBlockLoc.clone().add(0.5, baseY + i * step, 0.5);
+            Component itemLine = describeLootStack(loot);
+            ArmorStand line = world.spawn(at, ArmorStand.class);
+            line.setInvisible(true);
+            line.setMarker(true);
+            line.setGravity(false);
+            line.setCustomNameVisible(true);
+            line.customName(Component.text(viewer.getName(), NamedTextColor.AQUA)
+                    .append(Component.text(" : ", NamedTextColor.DARK_GRAY))
+                    .append(itemLine));
+            Bukkit.getScheduler().runTaskLater(plugin, () -> {
+                if (line.isValid()) {
+                    line.remove();
+                }
+            }, 100L);
         }
-        if (!isDpmrChest(block.getLocation())) {
-            return;
-        }
-        Set<String> structureKeys = connectedChestKeys(block);
-        List<String> cfgChests = plugin.getConfig().getStringList("loot.weapon-chests");
-        boolean touchesConfigured = structureKeys.stream().anyMatch(cfgChests::contains);
+    }
 
-        for (ItemStack stack : inv.getContents()) {
-            if (stack != null && !stack.getType().isAir()) {
-                holderLoc.getWorld().dropItemNaturally(holderLoc.clone().add(0.5, 0.6, 0.5), stack.clone());
-            }
+    private static Component describeLootStack(ItemStack stack) {
+        if (stack != null && stack.hasItemMeta() && stack.getItemMeta().displayName() != null) {
+            return stack.getItemMeta().displayName();
         }
-        inv.clear();
+        if (stack == null || stack.getType().isAir()) {
+            return Component.text("?", NamedTextColor.GRAY);
+        }
+        return Component.translatable(stack.getType().translationKey());
+    }
+
+    private void finishDpmrChestAfterLoot(Block block, Player player, Set<String> structureKeys,
+                                          boolean touchesConfigured, String canonicalKey) {
         for (String k : structureKeys) {
             filledThisChest.remove(k);
         }
-        if (touchesConfigured) {
-            String canonical = structureKeys.stream()
-                    .filter(cfgChests::contains)
-                    .min(String::compareTo)
-                    .orElseGet(() -> locKey(holderLoc.getBlock().getLocation()));
-            scheduleConfiguredChestRespawn(canonical);
-            WeaponRarity rarity = configuredChestRarity.get(canonical);
-            if (event.getPlayer() instanceof Player pl) {
-                pl.sendActionBar(Component.text("LootChest " , NamedTextColor.GRAY)
-                        .append(rarityDisplay(rarity))
-                        .append(Component.text(" en recharge.", NamedTextColor.GRAY)));
-            }
+        if (touchesConfigured && canonicalKey != null) {
+            scheduleConfiguredChestRespawn(canonicalKey);
+            player.sendActionBar(Component.text("Coffre en recharge.", NamedTextColor.GRAY));
         } else {
             removeChestBlocks(block);
             for (String k : structureKeys) {
                 zoneChestKeys.remove(k);
             }
+            player.sendActionBar(Component.text("Coffre ramassé.", NamedTextColor.GRAY));
         }
+        player.playSound(player.getLocation(), Sound.ENTITY_ITEM_BREAK, 0.85f, 0.85f);
+    }
 
-        HumanEntity p = event.getPlayer();
-        if (p instanceof Player pl) {
-            pl.playSound(pl.getLocation(), Sound.ENTITY_ITEM_BREAK, 1f, 0.8f);
-            if (!touchesConfigured) {
-                pl.sendActionBar(Component.text("Coffre ramasse.", NamedTextColor.GRAY));
+    /**
+     * Nombre d'objets independants par ouverture (defaut : tier I = 1, II = 2, III = 3).
+     */
+    private static int lootRollsForTier(FileConfiguration cfg, LootChestTier tier) {
+        String path = "loot.chest-tier." + tier.configSection() + ".loot-rolls";
+        int def = switch (tier) {
+            case TIER_1, MARITIME_1 -> 1;
+            case TIER_2, MARITIME_2 -> 2;
+            case TIER_3, MARITIME_3 -> 3;
+        };
+        return Math.max(1, cfg.getInt(path, def));
+    }
+
+    /**
+     * Plusieurs tirages : chaque roll suit les memes poids (arme / armure / conso + rarete).
+     */
+    private List<ItemStack> generateChestLootBundle(LootChestTier tier) {
+        FileConfiguration cfg = plugin.getConfig();
+        int n = lootRollsForTier(cfg, tier);
+        List<ItemStack> out = new ArrayList<>(n);
+        for (int i = 0; i < n; i++) {
+            ItemStack one = generateSingleChestLoot(tier);
+            if (one != null && !one.getType().isAir()) {
+                out.add(one);
             }
         }
+        return out;
+    }
+
+    /**
+     * Un seul objet : arme, armure ou consommable selon les poids du tier.
+     */
+    private ItemStack generateSingleChestLoot(LootChestTier tier) {
+        FileConfiguration cfg = plugin.getConfig();
+        String base = "loot.chest-tier." + tier.configSection() + ".";
+        int w = Math.max(0, cfg.getInt(base + "category-weapon-weight", 50));
+        int a = Math.max(0, cfg.getInt(base + "category-armor-weight", 25));
+        int c = Math.max(0, cfg.getInt(base + "category-consumable-weight", 25));
+        int total = w + a + c;
+        if (total <= 0) {
+            w = 50;
+            a = 25;
+            c = 25;
+            total = 100;
+        }
+        int roll = ThreadLocalRandom.current().nextInt(total);
+        if (roll < w) {
+            WeaponRarity rarity = rollRarityForChestTier(cfg, tier);
+            WeaponProfile p = rollWeaponForChest(cfg, null, rarity);
+            if (p == null) {
+                return armorManager.createRandomArmorPiece();
+            }
+            ItemStack weapon = weaponManager.createWeaponItem(p.name());
+            return weapon != null ? weapon : armorManager.createRandomArmorPiece();
+        }
+        if (roll < w + a) {
+            return armorManager.createRandomArmorPiece();
+        }
+        return rollSingleConsumableStack(cfg);
+    }
+
+    private ItemStack rollSingleConsumableStack(FileConfiguration cfg) {
+        int perMin = Math.max(1, cfg.getInt("loot.bandages-per-stack-min", 1));
+        int perMax = Math.max(perMin, cfg.getInt("loot.bandages-per-stack-max", 3));
+        if (ThreadLocalRandom.current().nextBoolean()) {
+            int n = perMin == perMax ? perMin : ThreadLocalRandom.current().nextInt(perMin, perMax + 1);
+            return bandageManager.createConsumable(bandageManager.rollLootHealConsumable(), n);
+        }
+        int shMin = Math.max(1, cfg.getInt("loot.shield-potion-per-stack-min", 1));
+        int shMax = Math.max(shMin, cfg.getInt("loot.shield-potion-per-stack-max", 1));
+        int n = shMin == shMax ? shMin : ThreadLocalRandom.current().nextInt(shMin, shMax + 1);
+        return bandageManager.createConsumable(bandageManager.rollLootShieldPotion(), n);
+    }
+
+    /** COMMON, UNCOMMON, RARE, EPIC, LEGENDARY, MYTHIC, GHOST */
+    private static int[] defaultRarityWeightsForTier(LootChestTier tier) {
+        return switch (tier) {
+            case TIER_1 -> new int[]{100, 28, 10, 4, 2, 0, 0};
+            case TIER_2 -> new int[]{55, 28, 12, 4, 2, 1, 0};
+            case TIER_3 -> new int[]{30, 25, 20, 12, 8, 4, 1};
+            case MARITIME_1 -> new int[]{72, 26, 12, 7, 3, 0, 0};
+            case MARITIME_2 -> new int[]{55, 28, 14, 8, 4, 1, 0};
+            case MARITIME_3 -> new int[]{38, 26, 18, 12, 6, 2, 0};
+        };
+    }
+
+    private WeaponRarity rollRarityForChestTier(FileConfiguration cfg, LootChestTier tier) {
+        String base = "loot.chest-tier." + tier.configSection() + ".rarity-weights.";
+        int[] def = defaultRarityWeightsForTier(tier);
+        int c = Math.max(0, cfg.getInt(base + "COMMON", def[0]));
+        int u = Math.max(0, cfg.getInt(base + "UNCOMMON", def[1]));
+        int r = Math.max(0, cfg.getInt(base + "RARE", def[2]));
+        int e = Math.max(0, cfg.getInt(base + "EPIC", def[3]));
+        int l = Math.max(0, cfg.getInt(base + "LEGENDARY", def[4]));
+        int m = Math.max(0, cfg.getInt(base + "MYTHIC", def[5]));
+        int g = Math.max(0, cfg.getInt(base + "GHOST", def[6]));
+        int sum = c + u + r + e + l + m + g;
+        if (sum <= 0) {
+            return WeaponRarity.COMMON;
+        }
+        int pick = ThreadLocalRandom.current().nextInt(sum);
+        if (pick < c) {
+            return WeaponRarity.COMMON;
+        }
+        pick -= c;
+        if (pick < u) {
+            return WeaponRarity.UNCOMMON;
+        }
+        pick -= u;
+        if (pick < r) {
+            return WeaponRarity.RARE;
+        }
+        pick -= r;
+        if (pick < e) {
+            return WeaponRarity.EPIC;
+        }
+        pick -= e;
+        if (pick < l) {
+            return WeaponRarity.LEGENDARY;
+        }
+        pick -= l;
+        if (pick < m + g) {
+            return pick < m ? WeaponRarity.MYTHIC : WeaponRarity.GHOST;
+        }
+        return WeaponRarity.COMMON;
     }
 
     @EventHandler
@@ -485,7 +735,7 @@ public class LootManager implements Listener {
         Location spawn = target.clone().add(0.5, spawnH, 0.5);
 
         String key = locKey(target);
-        if (airdropFallingDisplays.containsKey(key) || airdropLoot.containsKey(key)) {
+        if (airdropFallingDisplays.containsKey(key) || airdropTypes.containsKey(key)) {
             return;
         }
         AirdropType type = randomAirdropType();
@@ -606,100 +856,65 @@ public class LootManager implements Listener {
         if (!b.getType().isAir() && b.getType().isSolid()) {
             return;
         }
-        b.setType(Material.CHEST);
         String key = locKey(loc);
         AirdropType dropType = airdropTypes.getOrDefault(key, AirdropType.TACTIQUE);
-        airdropLoot.put(key, generateAirdropLoot(dropType));
+        Material chestMat = switch (dropType) {
+            case TACTIQUE -> Material.CHEST;
+            case MEDICAL -> Material.TRAPPED_CHEST;
+            case TECHNO -> Material.ENDER_CHEST;
+        };
+        b.setType(chestMat);
         airdropOpened.remove(key);
     }
 
-    private Inventory generateAirdropLoot(AirdropType type) {
+    private ItemStack generateSingleAirdropLoot(AirdropType type) {
         if (type == AirdropType.MEDICAL) {
-            return generateMedicalAirdropLoot();
+            return generateMedicalAirdropSingleItem();
         }
-        return generateWeaponAirdropLoot();
+        LootChestTier tier = switch (type) {
+            case TACTIQUE -> LootChestTier.TIER_1;
+            case TECHNO -> LootChestTier.TIER_3;
+            default -> LootChestTier.TIER_1;
+        };
+        return generateSingleChestLoot(tier);
     }
 
-    private Inventory generateWeaponAirdropLoot() {
-        FileConfiguration cfg = plugin.getConfig();
-        int min = Math.max(1, cfg.getInt("loot.airdrop.rolls-min", 1));
-        int max = Math.max(min, cfg.getInt("loot.airdrop.rolls-max", 2));
-        int rolls = Math.max(1, Math.min(2, ThreadLocalRandom.current().nextInt(min, max + 1)));
-        double legChance = Math.max(0, Math.min(0.2, cfg.getDouble("loot.airdrop.legendary-chance", 0.55) * 0.35));
-        List<String> leg = cfg.getStringList("loot.legendary-weapons");
-
-        List<String> epic = Arrays.stream(WeaponProfile.values())
-                .filter(w -> w.rarity() == WeaponRarity.EPIC)
-                .map(Enum::name)
-                .toList();
-
-        Inventory inv = Bukkit.createInventory(null, 27, Component.text("Airdrop", NamedTextColor.GOLD, TextDecoration.BOLD));
-        inv.clear();
-        for (int i = 0; i < rolls; i++) {
-            boolean takeLeg = !leg.isEmpty() && ThreadLocalRandom.current().nextDouble() < legChance;
-            String id = takeLeg
-                    ? leg.get(ThreadLocalRandom.current().nextInt(leg.size()))
-                    : (epic.isEmpty() ? null : epic.get(ThreadLocalRandom.current().nextInt(epic.size())));
-            if (id == null) {
-                continue;
-            }
-            ItemStack w = weaponManager.createWeaponItem(id);
-            if (w != null) {
-                inv.addItem(w);
-            }
-        }
-        return inv;
-    }
-
-    private Inventory generateMedicalAirdropLoot() {
+    /** Un seul lot consommable / soin pour largage médical. */
+    private ItemStack generateMedicalAirdropSingleItem() {
         FileConfiguration cfg = plugin.getConfig();
         String base = "loot.airdrop.medical.";
-        Inventory inv = Bukkit.createInventory(null, 27, Component.text("Airdrop", NamedTextColor.GOLD, TextDecoration.BOLD));
-        inv.clear();
-
-        int bandStacksMin = Math.max(0, cfg.getInt(base + "bandage-stacks-min", 3));
-        int bandStacksMax = Math.max(bandStacksMin, cfg.getInt(base + "bandage-stacks-max", 5));
-        int bandPerMin = Math.max(1, cfg.getInt(base + "bandages-per-stack-min", 2));
-        int bandPerMax = Math.max(bandPerMin, cfg.getInt(base + "bandages-per-stack-max", 6));
-        int bandStacks = ThreadLocalRandom.current().nextInt(bandStacksMin, bandStacksMax + 1);
-        for (int s = 0; s < bandStacks; s++) {
-            int n = ThreadLocalRandom.current().nextInt(bandPerMin, bandPerMax + 1);
-            inv.addItem(bandageManager.createConsumable(bandageManager.rollLootHealConsumable(), n));
+        int pick = ThreadLocalRandom.current().nextInt(5);
+        if (pick <= 1) {
+            int bandPerMin = Math.max(1, cfg.getInt(base + "bandages-per-stack-min", 2));
+            int bandPerMax = Math.max(bandPerMin, cfg.getInt(base + "bandages-per-stack-max", 6));
+            int n = bandPerMin == bandPerMax ? bandPerMin : ThreadLocalRandom.current().nextInt(bandPerMin, bandPerMax + 1);
+            return bandageManager.createConsumable(bandageManager.rollLootHealConsumable(), n);
         }
-
-        int shieldMin = Math.max(0, cfg.getInt(base + "shield-potion-stacks-min", 1));
-        int shieldMax = Math.max(shieldMin, cfg.getInt(base + "shield-potion-stacks-max", 2));
-        int shieldStacks = ThreadLocalRandom.current().nextInt(shieldMin, shieldMax + 1);
-        int shPerMin = Math.max(1, cfg.getInt(base + "shield-potion-per-stack-min", 1));
-        int shPerMax = Math.max(shPerMin, cfg.getInt(base + "shield-potion-per-stack-max", 2));
-        for (int s = 0; s < shieldStacks; s++) {
-            int n = ThreadLocalRandom.current().nextInt(shPerMin, shPerMax + 1);
-            inv.addItem(bandageManager.createConsumable(bandageManager.rollLootShieldPotion(), n));
+        if (pick == 2) {
+            int shPerMin = Math.max(1, cfg.getInt(base + "shield-potion-per-stack-min", 1));
+            int shPerMax = Math.max(shPerMin, cfg.getInt(base + "shield-potion-per-stack-max", 2));
+            int n = shPerMin == shPerMax ? shPerMin : ThreadLocalRandom.current().nextInt(shPerMin, shPerMax + 1);
+            return bandageManager.createConsumable(bandageManager.rollLootShieldPotion(), n);
         }
-
-        int mediMin = Math.max(0, cfg.getInt(base + "medikit-stacks-min", 1));
-        int mediMax = Math.max(mediMin, cfg.getInt(base + "medikit-stacks-max", 2));
-        int mediStacks = ThreadLocalRandom.current().nextInt(mediMin, mediMax + 1);
-        int mediPerMin = Math.max(1, cfg.getInt(base + "medikit-per-stack-min", 1));
-        int mediPerMax = Math.max(mediPerMin, cfg.getInt(base + "medikit-per-stack-max", 2));
-        for (int s = 0; s < mediStacks; s++) {
-            int n = ThreadLocalRandom.current().nextInt(mediPerMin, mediPerMax + 1);
-            inv.addItem(bandageManager.createConsumable(DpmrConsumable.MEDIKIT, n));
+        if (pick == 3) {
+            int mediPerMin = Math.max(1, cfg.getInt(base + "medikit-per-stack-min", 1));
+            int mediPerMax = Math.max(mediPerMin, cfg.getInt(base + "medikit-per-stack-max", 2));
+            int n = mediPerMin == mediPerMax ? mediPerMin : ThreadLocalRandom.current().nextInt(mediPerMin, mediPerMax + 1);
+            return bandageManager.createConsumable(DpmrConsumable.MEDIKIT, n);
         }
-
-        if (cfg.getBoolean(base + "include-lance-soin", true)) {
+        if (pick == 4 && cfg.getBoolean(base + "include-lance-soin", true)) {
             ItemStack lance = weaponManager.createWeaponItem(WeaponProfile.LANCE_SOIN.name());
             if (lance != null) {
-                inv.addItem(lance);
+                return lance;
             }
         }
         if (cfg.getBoolean(base + "include-serum-soin", true)) {
             ItemStack serum = weaponManager.createWeaponItem(WeaponProfile.SERUM_SOIN.name());
             if (serum != null) {
-                inv.addItem(serum);
+                return serum;
             }
         }
-        return inv;
+        return bandageManager.createConsumable(bandageManager.rollLootHealConsumable(), 4);
     }
 
     private void startAirdropOpen(Player player, Location chestLoc) {
@@ -708,7 +923,7 @@ public class LootManager implements Listener {
             I18n.actionBar(player, NamedTextColor.GRAY, "airdrop.already_open");
             return;
         }
-        if (!airdropLoot.containsKey(key)) {
+        if (!airdropTypes.containsKey(key)) {
             return;
         }
         String sessionKey = key + ":" + player.getUniqueId();
@@ -725,7 +940,9 @@ public class LootManager implements Listener {
             public void run() {
                 if (!player.isOnline()) {
                     BukkitTask t = airdropOpenTasks.remove(sessionKey);
-                    if (t != null) t.cancel();
+                    if (t != null) {
+                        t.cancel();
+                    }
                     return;
                 }
                 left--;
@@ -736,17 +953,36 @@ public class LootManager implements Listener {
                 }
                 if (left <= 0) {
                     airdropOpened.add(key);
-                    Inventory loot = airdropLoot.get(key);
-                    if (loot != null) {
-                        player.openInventory(loot);
+                    AirdropType dropType = airdropTypes.get(key);
+                    ItemStack loot = dropType != null ? generateSingleAirdropLoot(dropType) : generateSingleChestLoot(LootChestTier.TIER_1);
+                    if (loot != null && !loot.getType().isAir()) {
+                        giveLootToPlayer(player, loot.clone());
+                        showLootPopupAboveChest(chestLoc, player, List.of(loot));
                         player.playSound(player.getLocation(), Sound.BLOCK_CHEST_OPEN, 0.9f, 1.15f);
+                        player.playSound(player.getLocation(), Sound.ENTITY_ITEM_PICKUP, 0.55f, 1.15f);
                     }
+                    completeAirdropClaim(key, chestLoc);
                     BukkitTask t = airdropOpenTasks.remove(sessionKey);
-                    if (t != null) t.cancel();
+                    if (t != null) {
+                        t.cancel();
+                    }
                 }
             }
         }, 1L, 1L);
         airdropOpenTasks.put(sessionKey, task);
+    }
+
+    private void completeAirdropClaim(String key, Location chestLoc) {
+        if (chestLoc.getWorld() != null) {
+            Block block = chestLoc.getBlock();
+            if (LootChestTier.isLootChestBlock(block.getType())) {
+                block.setType(Material.AIR);
+                chestLoc.getWorld().playSound(chestLoc, Sound.BLOCK_CHEST_CLOSE, 0.8f, 1.2f);
+                chestLoc.getWorld().spawnParticle(Particle.END_ROD, chestLoc.clone().add(0.5, 0.6, 0.5), 18, 0.35, 0.35, 0.35, 0.02);
+            }
+        }
+        airdropOpened.remove(key);
+        removeAirdropHologram(key);
     }
 
     @EventHandler
@@ -754,67 +990,16 @@ public class LootManager implements Listener {
         if (event.getAction() != Action.RIGHT_CLICK_BLOCK || event.getClickedBlock() == null) {
             return;
         }
-        if (event.getClickedBlock().getType() != Material.CHEST) {
+        if (!LootChestTier.isLootChestBlock(event.getClickedBlock().getType())) {
             return;
         }
         Location loc = event.getClickedBlock().getLocation();
         String key = locKey(loc);
-        if (!airdropLoot.containsKey(key)) {
+        if (!airdropTypes.containsKey(key)) {
             return;
         }
         event.setCancelled(true);
         startAirdropOpen(event.getPlayer(), loc);
-    }
-
-    @EventHandler
-    public void onAirdropLootClose(InventoryCloseEvent event) {
-        InventoryView view = event.getView();
-        if (view.title() == null) {
-            return;
-        }
-        if (!net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer.plainText().serialize(view.title()).equals("Airdrop")) {
-            return;
-        }
-        Inventory inv = view.getTopInventory();
-        // Si plus d'items, on nettoie le coffre le plus proche dans un petit rayon
-        boolean empty = true;
-        for (ItemStack s : inv.getContents()) {
-            if (s != null && !s.getType().isAir()) {
-                empty = false;
-                break;
-            }
-        }
-        if (!empty) {
-            return;
-        }
-        if (!(event.getPlayer() instanceof Player player)) {
-            return;
-        }
-        Location pLoc = player.getLocation();
-        String best = null;
-        double bestD = 6 * 6;
-        for (String k : airdropLoot.keySet()) {
-            Location c = parseLocKey(k);
-            if (c == null || c.getWorld() == null || !c.getWorld().equals(pLoc.getWorld())) {
-                continue;
-            }
-            double d = c.distanceSquared(pLoc);
-            if (d < bestD) {
-                bestD = d;
-                best = k;
-            }
-        }
-        if (best != null) {
-            Location chest = parseLocKey(best);
-            if (chest != null && chest.getBlock().getType() == Material.CHEST) {
-                chest.getBlock().setType(Material.AIR);
-                chest.getWorld().playSound(chest, Sound.BLOCK_CHEST_CLOSE, 0.8f, 1.2f);
-                chest.getWorld().spawnParticle(Particle.END_ROD, chest.clone().add(0.5, 0.6, 0.5), 18, 0.35, 0.35, 0.35, 0.02);
-            }
-            airdropLoot.remove(best);
-            airdropOpened.remove(best);
-            removeAirdropHologram(best);
-        }
     }
 
     private ArmorStand spawnAirdropHologram(Location at, NamedTextColor color, String text) {
@@ -838,7 +1023,7 @@ public class LootManager implements Listener {
         AirdropType type = airdropTypes.getOrDefault(key, AirdropType.TACTIQUE);
         holo.teleport(at);
         holo.customName(Component.text("Airdrop " + type.label, type.color, TextDecoration.BOLD)
-                .append(Component.text(" • Clic droit", NamedTextColor.YELLOW)));
+                .append(Component.text(" • Right-click", NamedTextColor.YELLOW)));
     }
 
     private void removeAirdropHologram(String key) {
@@ -867,10 +1052,10 @@ public class LootManager implements Listener {
             return;
         }
         Block b = surface.getBlock();
-        b.setType(Material.CHEST);
+        b.setType(rollZoneChestTier(cfg).material());
         String key = locKey(surface);
         zoneChestKeys.add(key);
-        Bukkit.broadcast(Component.text("[DPMR] Un coffre de butin est apparu !", NamedTextColor.GREEN));
+        Bukkit.broadcast(Component.text("[DPMR] A loot chest has appeared!", NamedTextColor.GREEN));
         surface.getWorld().playSound(surface, Sound.BLOCK_CHEST_OPEN, 1f, 1.2f);
     }
 
@@ -914,6 +1099,25 @@ public class LootManager implements Listener {
         return null;
     }
 
+    private LootChestTier rollZoneChestTier(FileConfiguration cfg) {
+        int w1 = Math.max(0, cfg.getInt("loot.zone-chest-tier-weights.tier-1", 50));
+        int w2 = Math.max(0, cfg.getInt("loot.zone-chest-tier-weights.tier-2", 35));
+        int w3 = Math.max(0, cfg.getInt("loot.zone-chest-tier-weights.tier-3", 15));
+        int total = w1 + w2 + w3;
+        if (total <= 0) {
+            return LootChestTier.TIER_1;
+        }
+        int r = ThreadLocalRandom.current().nextInt(total);
+        if (r < w1) {
+            return LootChestTier.TIER_1;
+        }
+        r -= w1;
+        if (r < w2) {
+            return LootChestTier.TIER_2;
+        }
+        return LootChestTier.TIER_3;
+    }
+
     private void spawnBoost() {
         List<Player> online = List.copyOf(Bukkit.getOnlinePlayers());
         if (online.isEmpty()) {
@@ -933,60 +1137,7 @@ public class LootManager implements Listener {
         ItemStack stack = named(Material.BEACON, "BOOST_" + boost, NamedTextColor.AQUA);
         Item item = dropLoc.getWorld().dropItem(dropLoc, stack);
         item.setGlowing(true);
-        Bukkit.broadcast(Component.text("[DPMR] Un boost est apparu !", NamedTextColor.AQUA));
-    }
-
-    private void fillLootChest(Inventory inventory, WeaponRarity forcedRarity) {
-        inventory.clear();
-        FileConfiguration cfg = plugin.getConfig();
-        int weaponMin = cfg.getInt("loot.chest-weapon-min", -1);
-        int weaponMax = cfg.getInt("loot.chest-weapon-max", -1);
-        if (weaponMin < 0 || weaponMax < 0) {
-            weaponMin = Math.min(1, Math.max(0, cfg.getInt("loot.chest-rolls-min", 0)));
-            weaponMax = Math.min(1, Math.max(weaponMin, cfg.getInt("loot.chest-rolls-max", 1)));
-        } else {
-            weaponMin = Math.max(0, Math.min(1, weaponMin));
-            weaponMax = Math.max(weaponMin, Math.min(1, weaponMax));
-        }
-        int weaponRolls = weaponMin == weaponMax ? weaponMin : ThreadLocalRandom.current().nextInt(weaponMin, weaponMax + 1);
-        Set<WeaponProfile> rolledThisChest = new HashSet<>();
-        for (int i = 0; i < weaponRolls; i++) {
-            WeaponProfile rolled = rollWeaponForChest(cfg, rolledThisChest, forcedRarity);
-            if (rolled == null) {
-                continue;
-            }
-            rolledThisChest.add(rolled);
-            ItemStack weapon = weaponManager.createWeaponItem(rolled.name());
-            placeLootItem(inventory, weapon, true);
-        }
-        int armorMin = Math.max(0, cfg.getInt("loot.chest-armor-min", 0));
-        int armorMax = Math.max(armorMin, cfg.getInt("loot.chest-armor-max", 1));
-        armorMax = Math.min(4, armorMax);
-        int armorPieces = armorMin == armorMax ? armorMin : ThreadLocalRandom.current().nextInt(armorMin, armorMax + 1);
-        for (int a = 0; a < armorPieces; a++) {
-            ItemStack piece = armorManager.createRandomArmorPiece();
-            placeLootItem(inventory, piece, true);
-        }
-        int bandStacksMin = Math.max(0, cfg.getInt("loot.bandage-stacks-min", 0));
-        int bandStacksMax = Math.max(bandStacksMin, cfg.getInt("loot.bandage-stacks-max", 4));
-        int stacks = ThreadLocalRandom.current().nextInt(bandStacksMin, bandStacksMax + 1);
-        int perStackMin = Math.max(1, cfg.getInt("loot.bandages-per-stack-min", 1));
-        int perStackMax = Math.max(perStackMin, cfg.getInt("loot.bandages-per-stack-max", 3));
-        for (int s = 0; s < stacks; s++) {
-            int bandCount = ThreadLocalRandom.current().nextInt(perStackMin, perStackMax + 1);
-            DpmrConsumable healType = bandageManager.rollLootHealConsumable();
-            placeLootItem(inventory, bandageManager.createConsumable(healType, bandCount), false);
-        }
-        int shieldStacksMin = Math.max(0, cfg.getInt("loot.shield-potion-stacks-min", 0));
-        int shieldStacksMax = Math.max(shieldStacksMin, cfg.getInt("loot.shield-potion-stacks-max", 1));
-        int shieldStacks = ThreadLocalRandom.current().nextInt(shieldStacksMin, shieldStacksMax + 1);
-        int shieldPerMin = Math.max(1, cfg.getInt("loot.shield-potion-per-stack-min", 1));
-        int shieldPerMax = Math.max(shieldPerMin, cfg.getInt("loot.shield-potion-per-stack-max", 1));
-        for (int s = 0; s < shieldStacks; s++) {
-            int n = ThreadLocalRandom.current().nextInt(shieldPerMin, shieldPerMax + 1);
-            DpmrConsumable shieldType = bandageManager.rollLootShieldPotion();
-            placeLootItem(inventory, bandageManager.createConsumable(shieldType, n), false);
-        }
+        Bukkit.broadcast(Component.text("[DPMR] A boost has appeared!", NamedTextColor.AQUA));
     }
 
     /**
@@ -1088,7 +1239,7 @@ public class LootManager implements Listener {
 
     private boolean isDpmrChest(Location location) {
         Block b = location.getBlock();
-        if (b.getType() != Material.CHEST) {
+        if (!LootChestTier.isLootChestBlock(b.getType())) {
             return false;
         }
         for (String k : connectedChestKeys(b)) {
@@ -1106,13 +1257,14 @@ public class LootManager implements Listener {
 
     private Set<String> connectedChestKeys(Block start) {
         Set<String> keys = new HashSet<>();
-        if (start.getType() != Material.CHEST) {
+        if (!LootChestTier.isLootChestBlock(start.getType())) {
             return keys;
         }
+        Material kind = start.getType();
         keys.add(locKey(start.getLocation()));
         for (BlockFace face : new BlockFace[]{BlockFace.NORTH, BlockFace.SOUTH, BlockFace.EAST, BlockFace.WEST}) {
             Block n = start.getRelative(face);
-            if (n.getType() == Material.CHEST) {
+            if (n.getType() == kind) {
                 keys.add(locKey(n.getLocation()));
             }
         }
@@ -1126,7 +1278,6 @@ public class LootManager implements Listener {
     private void scheduleConfiguredChestRespawn(String canonicalKey) {
         long sec = Math.max(5L, plugin.getConfig().getLong("loot.configured-chest-respawn-seconds", 120));
         configuredChestCooldownUntil.put(canonicalKey, System.currentTimeMillis() + sec * 1000L);
-        configuredChestRarity.put(canonicalKey, rollConfiguredChestRarity(plugin.getConfig()));
         updateConfiguredChestHologram(canonicalKey);
     }
 
@@ -1139,38 +1290,54 @@ public class LootManager implements Listener {
 
     private void tickConfiguredChestHud() {
         long now = System.currentTimeMillis();
-        List<String> done = new ArrayList<>();
+        List<String> finishedCooldown = new ArrayList<>();
         for (Map.Entry<String, Long> e : configuredChestCooldownUntil.entrySet()) {
             if (e.getValue() <= now) {
-                done.add(e.getKey());
+                finishedCooldown.add(e.getKey());
             }
         }
-        for (String key : done) {
+        for (String key : finishedCooldown) {
             configuredChestCooldownUntil.remove(key);
             Location loc = parseLocKey(key);
-            if (loc != null && loc.getWorld() != null && loc.getBlock().getType() == Material.CHEST) {
+            if (loc != null && loc.getWorld() != null && LootChestTier.isLootChestBlock(loc.getBlock().getType())) {
                 loc.getWorld().playSound(loc, Sound.BLOCK_NOTE_BLOCK_CHIME, 0.75f, 1.35f);
                 loc.getWorld().spawnParticle(Particle.END_ROD, loc.clone().add(0.5, 1.0, 0.5), 8, 0.25, 0.2, 0.25, 0.01);
             }
+            updateConfiguredChestHologram(key);
         }
-        refreshConfiguredChestHolograms();
+        for (String key : new ArrayList<>(configuredChestCooldownUntil.keySet())) {
+            updateConfiguredChestHologram(key);
+        }
         tickEpicConfiguredChestParticles();
+        tickMaritimeConfiguredChestParticles();
     }
 
-    /** Particules autour des LootChest configures dont la rarete affichee est Epique. */
+    /** Particules autour des coffres configurés tier III (ender). */
     private void tickEpicConfiguredChestParticles() {
         for (String key : plugin.getConfig().getStringList("loot.weapon-chests")) {
-            if (configuredChestRarity.get(key) != WeaponRarity.EPIC) {
-                continue;
-            }
             Location loc = parseLocKey(key);
-            if (loc == null || loc.getWorld() == null || loc.getBlock().getType() != Material.CHEST) {
+            if (loc == null || loc.getWorld() == null || loc.getBlock().getType() != Material.ENDER_CHEST) {
                 continue;
             }
             Location center = loc.clone().add(0.5, 1.15, 0.5);
             World w = loc.getWorld();
             w.spawnParticle(Particle.ENCHANT, center, 10, 0.4, 0.25, 0.4, 0.02);
             w.spawnParticle(Particle.END_ROD, center, 3, 0.12, 0.08, 0.12, 0.01);
+        }
+    }
+
+    /** Particules autour des Maritime Chest (barrel) enregistrés. */
+    private void tickMaritimeConfiguredChestParticles() {
+        for (String key : plugin.getConfig().getStringList("loot.weapon-chests")) {
+            Location loc = parseLocKey(key);
+            if (loc == null || loc.getWorld() == null || loc.getBlock().getType() != Material.BARREL) {
+                continue;
+            }
+            Location center = loc.clone().add(0.5, 1.0, 0.5);
+            World w = loc.getWorld();
+            w.spawnParticle(Particle.BUBBLE_POP, center, 6, 0.38, 0.18, 0.38, 0.02);
+            w.spawnParticle(Particle.BUBBLE_COLUMN_UP, center, 5, 0.32, 0.12, 0.32, 0.015);
+            w.spawnParticle(Particle.DRIPPING_WATER, loc.clone().add(0.5, 1.15, 0.5), 2, 0.2, 0.1, 0.2, 0);
         }
     }
 
@@ -1185,18 +1352,17 @@ public class LootManager implements Listener {
     private boolean breakConfiguredChestSpawn(Block block, Player player) {
         String key = configuredChestKeyFromStructure(block);
         if (key == null) {
-            player.sendActionBar(Component.text("Ce coffre n'est pas un LootChest configure.", NamedTextColor.GRAY));
+            player.sendActionBar(Component.text("This chest is not a configured LootChest.", NamedTextColor.GRAY));
             return false;
         }
         List<String> list = new ArrayList<>(plugin.getConfig().getStringList("loot.weapon-chests"));
         if (!list.remove(key)) {
-            player.sendActionBar(Component.text("Spawn deja retire.", NamedTextColor.GRAY));
+            player.sendActionBar(Component.text("Spawn already removed.", NamedTextColor.GRAY));
             return false;
         }
         plugin.getConfig().set("loot.weapon-chests", list);
         plugin.saveConfig();
         configuredChestCooldownUntil.remove(key);
-        configuredChestRarity.remove(key);
         ArmorStand holo = configuredChestHolograms.remove(key);
         if (holo != null && holo.isValid()) {
             holo.remove();
@@ -1231,34 +1397,35 @@ public class LootManager implements Listener {
 
     private void updateConfiguredChestHologram(String key) {
         Location loc = parseLocKey(key);
-        if (loc == null || loc.getWorld() == null || loc.getBlock().getType() != Material.CHEST) {
+        if (loc == null || loc.getWorld() == null || !LootChestTier.isLootChestBlock(loc.getBlock().getType())) {
             ArmorStand old = configuredChestHolograms.remove(key);
             if (old != null && old.isValid()) {
                 old.remove();
             }
             return;
         }
+        LootChestTier tier = LootChestTier.fromMaterial(loc.getBlock().getType());
+        String holoTitle = tier.configuredHologramTitle();
         Location holoLoc = loc.clone().add(0.5, 1.35, 0.5);
         ArmorStand holo = configuredChestHolograms.get(key);
         if (holo == null || !holo.isValid()) {
-            holo = spawnAirdropHologram(holoLoc, NamedTextColor.GOLD, "LootChest");
+            holo = spawnAirdropHologram(holoLoc, tier.labelColor(), holoTitle);
             configuredChestHolograms.put(key, holo);
-        } else {
+        } else if (holoLoc.getWorld() != null && holo.getWorld() == holoLoc.getWorld()
+                && holo.getLocation().distanceSquared(holoLoc) > 0.04) {
             holo.teleport(holoLoc);
         }
         long leftMs = configuredChestCooldownUntil.getOrDefault(key, 0L) - System.currentTimeMillis();
-        WeaponRarity rarity = configuredChestRarity.get(key);
+        Component ready = Component.text(tier.isMaritime() ? "Ready" : "Prêt", NamedTextColor.GREEN);
         if (leftMs > 0L) {
             long sec = Math.max(1L, (long) Math.ceil(leftMs / 1000.0));
-            holo.customName(Component.text("LootChest", NamedTextColor.GOLD, TextDecoration.BOLD)
+            holo.customName(Component.text(holoTitle, tier.labelColor(), TextDecoration.BOLD)
                     .append(Component.text(" • ", NamedTextColor.DARK_GRAY))
-                    .append(rarityDisplay(rarity))
-                    .append(Component.text(" • " + sec + "s", NamedTextColor.YELLOW)));
+                    .append(Component.text(sec + "s", NamedTextColor.YELLOW)));
         } else {
-            holo.customName(Component.text("LootChest", NamedTextColor.GOLD, TextDecoration.BOLD)
+            holo.customName(Component.text(holoTitle, tier.labelColor(), TextDecoration.BOLD)
                     .append(Component.text(" • ", NamedTextColor.DARK_GRAY))
-                    .append(rarityDisplay(rarity))
-                    .append(Component.text(" • Pret", NamedTextColor.GREEN)));
+                    .append(ready));
         }
     }
 
@@ -1305,18 +1472,14 @@ public class LootManager implements Listener {
         Set<WeaponProfile> poolSet = new LinkedHashSet<>();
         for (String id : cfg.getStringList("loot.chest-weapons")) {
             WeaponProfile p = WeaponProfile.fromId(id);
-            if (p != null && p.rarity() != WeaponRarity.GHOST) {
+            if (p != null) {
                 poolSet.add(p);
             }
         }
         List<WeaponProfile> pool = new ArrayList<>(poolSet);
         // Si la config est trop pauvre, on élargit le pool pour eviter les coffres monotones.
         if (pool.size() <= 1) {
-            for (WeaponProfile profile : WeaponProfile.values()) {
-                if (profile.rarity() != WeaponRarity.GHOST) {
-                    pool.add(profile);
-                }
-            }
+            pool.addAll(Arrays.asList(WeaponProfile.values()));
         }
         if (pool.isEmpty()) {
             pool.addAll(Arrays.asList(WeaponProfile.values()));
@@ -1338,46 +1501,6 @@ public class LootManager implements Listener {
         return pick.get(ThreadLocalRandom.current().nextInt(pick.size()));
     }
 
-    private static WeaponRarity rollConfiguredChestRarity(FileConfiguration cfg) {
-        int c = Math.max(0, cfg.getInt("loot.configured-chest-rarity-weights.COMMON", 55));
-        int u = Math.max(0, cfg.getInt("loot.configured-chest-rarity-weights.UNCOMMON", 27));
-        int r = Math.max(0, cfg.getInt("loot.configured-chest-rarity-weights.RARE", 13));
-        int e = Math.max(0, cfg.getInt("loot.configured-chest-rarity-weights.EPIC", 5));
-        int total = c + u + r + e;
-        if (total <= 0) {
-            return WeaponRarity.COMMON;
-        }
-        int roll = ThreadLocalRandom.current().nextInt(total);
-        if (roll < c) {
-            return WeaponRarity.COMMON;
-        }
-        roll -= c;
-        if (roll < u) {
-            return WeaponRarity.UNCOMMON;
-        }
-        roll -= u;
-        if (roll < r) {
-            return WeaponRarity.RARE;
-        }
-        return WeaponRarity.EPIC;
-    }
-
-    private static Component rarityDisplay(WeaponRarity rarity) {
-        if (rarity == null) {
-            return Component.text("• ", NamedTextColor.DARK_GRAY)
-                    .append(Component.text("Aléatoire", NamedTextColor.GRAY));
-        }
-        return switch (rarity) {
-            case COMMON -> Component.text("Commun", NamedTextColor.WHITE);
-            case UNCOMMON -> Component.text("Peu commun", NamedTextColor.GREEN);
-            case RARE -> Component.text("Rare", NamedTextColor.AQUA);
-            case EPIC -> Component.text("Epique", NamedTextColor.LIGHT_PURPLE);
-            case LEGENDARY -> Component.text("Legendaire", NamedTextColor.GOLD);
-            case MYTHIC -> Component.text("Mythique", net.kyori.adventure.text.format.TextColor.color(0xFF3D9A));
-            case GHOST -> Component.text("Ghost", net.kyori.adventure.text.format.TextColor.color(0x9B6BFF));
-        };
-    }
-
     private static WeaponRarity rollRarityTier(FileConfiguration cfg) {
         int c = Math.max(0, cfg.getInt("loot.rarity-weights.COMMON", 48));
         int u = Math.max(0, cfg.getInt("loot.rarity-weights.UNCOMMON", 28));
@@ -1385,7 +1508,8 @@ public class LootManager implements Listener {
         int e = Math.max(0, cfg.getInt("loot.rarity-weights.EPIC", 7));
         int l = Math.max(0, cfg.getInt("loot.rarity-weights.LEGENDARY", 3));
         int m = Math.max(0, cfg.getInt("loot.rarity-weights.MYTHIC", 1));
-        int total = c + u + r + e + l + m;
+        int g = Math.max(0, cfg.getInt("loot.rarity-weights.GHOST", 0));
+        int total = c + u + r + e + l + m + g;
         if (total <= 0) {
             return WeaponRarity.COMMON;
         }
@@ -1409,7 +1533,11 @@ public class LootManager implements Listener {
         if (roll < l) {
             return WeaponRarity.LEGENDARY;
         }
-        return WeaponRarity.MYTHIC;
+        roll -= l;
+        if (roll < m + g) {
+            return roll < m ? WeaponRarity.MYTHIC : WeaponRarity.GHOST;
+        }
+        return WeaponRarity.COMMON;
     }
 
     private void removeChestBlockAtKey(String key) {
@@ -1425,20 +1553,21 @@ public class LootManager implements Listener {
         int y = Integer.parseInt(split[2]);
         int z = Integer.parseInt(split[3]);
         Block b = world.getBlockAt(x, y, z);
-        if (b.getType() == Material.CHEST) {
+        if (LootChestTier.isLootChestBlock(b.getType())) {
             removeChestBlocks(b);
         }
     }
 
     private void removeChestBlocks(Block start) {
-        if (start.getType() != Material.CHEST) {
+        if (!LootChestTier.isLootChestBlock(start.getType())) {
             return;
         }
+        Material kind = start.getType();
         Set<Block> blocks = new HashSet<>();
         blocks.add(start);
         for (BlockFace face : new BlockFace[]{BlockFace.NORTH, BlockFace.SOUTH, BlockFace.EAST, BlockFace.WEST}) {
             Block n = start.getRelative(face);
-            if (n.getType() == Material.CHEST) {
+            if (n.getType() == kind) {
                 blocks.add(n);
             }
         }
@@ -1463,7 +1592,7 @@ public class LootManager implements Listener {
     private void addHeldWeapon(Player player, String path) {
         ItemStack held = player.getInventory().getItemInMainHand();
         if (held.getType().isAir()) {
-            player.sendMessage(Component.text("Tiens une arme en main.", NamedTextColor.RED));
+            player.sendMessage(Component.text("Hold a weapon in your hand.", NamedTextColor.RED));
             return;
         }
         String weaponId = held.getItemMeta() != null && held.getItemMeta().displayName() != null

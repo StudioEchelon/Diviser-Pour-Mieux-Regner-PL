@@ -5,161 +5,146 @@ import fr.dpmr.i18n.I18n;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import net.kyori.adventure.text.format.TextDecoration;
+import org.bukkit.inventory.ItemStack;
+import org.bukkit.inventory.meta.Damageable;
 import org.bukkit.inventory.meta.ItemMeta;
+import org.bukkit.plugin.java.JavaPlugin;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 
 /**
- * Localized weapon tooltips with combat stats (damage, RoF, DPS, mag, reload).
+ * Clash-Royale-style weapon tooltip: rarity in color, then 5-6 clean stat lines.
  */
 public final class WeaponLoreBuilder {
+
+    public record WeaponKillMeterLore(boolean show, int meter0To100, boolean maxed, List<WeaponKillPerk> perks) {
+    }
+
+    public static WeaponKillMeterLore killMeterFor(ItemStack stack, WeaponProfile w, JavaPlugin plugin) {
+        if (!WeaponKillPerkState.enabled(plugin) || stack == null || w == null || !w.supportsKillPerkMeter()) {
+            return new WeaponKillMeterLore(false, 0, false, List.of());
+        }
+        return new WeaponKillMeterLore(true,
+                WeaponKillPerkState.meter(stack, plugin),
+                WeaponKillPerkState.isMaxed(stack, plugin),
+                WeaponKillPerkState.perks(stack, plugin));
+    }
 
     private WeaponLoreBuilder() {
     }
 
     public static void apply(ItemMeta meta, WeaponProfile w,
-                            WeaponUpgradeState st, BombUpgradeState bombSt, JerrycanUpgradeState jerrySt,
-                            GameLocale loc) {
-        meta.displayName(Component.text(I18n.string(loc, "weapon.prefix") + " " + w.displayName(), w.color()));
+                             WeaponUpgradeState st, BombUpgradeState bombSt, MortarUpgradeState mortarSt,
+                             RocketUpgradeState rocketSt, RevolverUpgradeState revolverSt, JerrycanUpgradeState jerrySt,
+                             GameLocale loc, Integer ammoCurrent, int ammoMax,
+                             WeaponKillMeterLore killMeter) {
+        meta.displayName(Component.text(w.displayName(), w.color())
+                .decoration(TextDecoration.ITALIC, false));
+
         List<Component> lore = new ArrayList<>();
-        boolean boldRare = w.rarity() == WeaponRarity.LEGENDARY || w.rarity() == WeaponRarity.MYTHIC
-                || w.rarity() == WeaponRarity.GHOST;
-        String rar = I18n.string(loc, "rarity." + w.rarity().name());
-        lore.add(boldRare
-                ? Component.text(rar, w.rarity().color(), TextDecoration.BOLD)
-                : Component.text(rar, w.rarity().color()));
 
-        if (w == WeaponProfile.JERRYCAN) {
-            lore.add(I18n.component(loc, NamedTextColor.YELLOW, "weapon.jerry_line1"));
-            lore.add(I18n.component(loc, NamedTextColor.GOLD, "weapon.jerry_line2"));
-        } else if (w.isGrapplingHook()) {
-            lore.add(Component.text(I18n.string(loc, "firemode.GRAPPLE_BEAM") + " — " + I18n.string(loc, "weapon.grapple_line1"), NamedTextColor.AQUA));
-            lore.add(I18n.component(loc, NamedTextColor.DARK_GRAY, "weapon.grapple_line2"));
-            lore.add(I18n.component(loc, NamedTextColor.GRAY, "weapon.stat_range", (int) w.baseRange()));
-        } else if (w.fireMode() == FireMode.PROJECTILE_SERUM_ZONE) {
-            lore.add(Component.text(I18n.string(loc, "firemode.PROJECTILE_SERUM_ZONE") + " — " + I18n.string(loc, "weapon.serum_line1"), NamedTextColor.GREEN));
-            lore.add(I18n.component(loc, NamedTextColor.DARK_AQUA, "weapon.serum_line2",
-                    String.format(Locale.ROOT, "%.1f", w.baseRange())));
-            lore.add(I18n.component(loc, NamedTextColor.GRAY, "weapon.serum_line3"));
-        } else if (w.fireMode() == FireMode.PROJECTILE_HEAL_DART) {
-            lore.add(Component.text(I18n.string(loc, "firemode.PROJECTILE_HEAL_DART") + " — " + I18n.string(loc, "weapon.heal_dart_line1"), NamedTextColor.LIGHT_PURPLE));
-            lore.add(I18n.component(loc, NamedTextColor.DARK_PURPLE, "weapon.heal_dart_line2",
-                    String.format(Locale.ROOT, "%.1f", w.baseDamage()),
-                    String.format(Locale.ROOT, "%.1f", w.baseDamage() / 2.0)));
-            int cdTicks = Math.max(1, w.cooldownTicks());
-            double rof = 20.0 / cdTicks;
-            lore.add(I18n.component(loc, NamedTextColor.GRAY, "weapon.stat_fire_rate", String.format(Locale.ROOT, "%.2f", rof)));
-        } else if (w.isNuclearWeapon()) {
-            lore.add(Component.text(I18n.string(loc, "firemode.NUCLEAR_STRIKE") + " — " + I18n.string(loc, "weapon.nuke_line1"), NamedTextColor.LIGHT_PURPLE));
+        boolean bold = w.rarity().ordinal() >= WeaponRarity.LEGENDARY.ordinal();
+        Component rarityComp = bold
+                ? Component.text(w.rarity().displayFr(), w.rarity().color(), TextDecoration.BOLD)
+                : Component.text(w.rarity().displayFr(), w.rarity().color());
+        lore.add(rarityComp.decoration(TextDecoration.ITALIC, false));
+
+        lore.add(Component.empty());
+
+        double hearts = w.baseDamage() / 2.0;
+        lore.add(stat(l(loc, "D\u00e9g\u00e2ts", "Damage"),
+                String.format(Locale.ROOT, "%.1f \u2764", hearts)));
+
+        if (w.pellets() > 1) {
+            lore.add(stat(l(loc, "Plombs", "Pellets"),
+                    String.valueOf(w.pellets())));
+        }
+
+        if (w.cooldownTicks() > 0) {
+            double rof = 20.0 / w.cooldownTicks();
+            lore.add(stat(l(loc, "Cadence", "Fire rate"),
+                    String.format(Locale.ROOT, "%.1f", rof)
+                            + (loc == GameLocale.FR ? " tir/s" : "/s")));
+        }
+
+        double reloadSec = w.reloadTicks() / 20.0;
+        lore.add(stat(l(loc, "Recharge", "Reload"),
+                String.format(Locale.ROOT, "%.1fs", reloadSec)));
+
+        if (ammoCurrent != null) {
+            lore.add(stat(l(loc, "Chargeur", "Magazine"),
+                    ammoCurrent + "/" + ammoMax));
         } else {
-            appendCombatStats(lore, w, loc, jerrySt);
+            lore.add(stat(l(loc, "Chargeur", "Magazine"),
+                    String.valueOf(ammoMax)));
         }
 
-        if (w.hasScope()) {
-            lore.add(I18n.component(loc, NamedTextColor.AQUA, "weapon.scope_line"));
-        }
-        if (w.hasHeavyWeight()) {
-            lore.add(I18n.component(loc, NamedTextColor.DARK_RED, "weapon.heavy_line", w.heavyHoldSlowAmplifier() + 1));
-        }
-        if (w == WeaponProfile.LANCE_MARRONS) {
-            lore.add(I18n.component(loc, NamedTextColor.GOLD, "weapon.chestnut_extra"));
-        }
-        if (w.isBombWeapon()) {
-            lore.add(I18n.component(loc, NamedTextColor.RED, "weapon.bomb_table"));
+        lore.add(stat(l(loc, "Port\u00e9e", "Range"),
+                (int) w.baseRange()
+                        + (loc == GameLocale.FR ? " blocs" : " blocks")));
+
+        if (killMeter != null && killMeter.show()) {
+            lore.add(Component.empty());
+            if (killMeter.maxed()) {
+                lore.add(Component.text(l(loc, "Am\u00e9liorations (max)", "Upgrades (max)"),
+                                NamedTextColor.GREEN)
+                        .decoration(TextDecoration.ITALIC, false));
+            } else {
+                String bar = killMeterBar(killMeter.meter0To100());
+                lore.add(Component.text()
+                        .append(Component.text(l(loc, "\u00c9volution", "Evolution") + ": ",
+                                        NamedTextColor.GRAY)
+                                .decoration(TextDecoration.ITALIC, false))
+                        .append(Component.text(bar + " ", NamedTextColor.DARK_AQUA)
+                                .decoration(TextDecoration.ITALIC, false))
+                        .append(Component.text(killMeter.meter0To100() + "%", NamedTextColor.AQUA)
+                                .decoration(TextDecoration.ITALIC, false))
+                        .build());
+            }
+            for (WeaponKillPerk p : killMeter.perks()) {
+                lore.add(Component.text("  + " + I18n.string(loc, p.nameKey()),
+                                NamedTextColor.LIGHT_PURPLE)
+                        .decoration(TextDecoration.ITALIC, false));
+            }
         }
 
-        for (Component line : BombUpgradeEffects.loreLines(bombSt, loc)) {
-            lore.add(line);
-        }
-        for (Component line : JerrycanUpgradeEffects.loreLines(jerrySt, loc)) {
-            lore.add(line);
+        if (meta instanceof Damageable d && d.hasMaxDamage()) {
+            int max = d.getMaxDamage();
+            int left = max - Math.min(max, d.getDamage());
+            lore.add(Component.empty());
+            NamedTextColor dc = left <= max / 4 ? NamedTextColor.RED
+                    : left <= max / 2 ? NamedTextColor.YELLOW
+                    : NamedTextColor.DARK_GRAY;
+            lore.add(Component.text(left + " / " + max
+                            + (loc == GameLocale.FR ? " tirs" : " uses"), dc)
+                    .decoration(TextDecoration.ITALIC, false));
         }
 
-        int cap = w.clipSize() + (w == WeaponProfile.JERRYCAN ? JerrycanUpgradeEffects.clipBonus(jerrySt) : 0);
-        if (showsMagLine(w)) {
-            lore.add(I18n.component(loc, NamedTextColor.GRAY, "weapon.stat_mag", cap));
-        }
-        if (showsAmmoNote(w)) {
-            lore.add(I18n.component(loc, NamedTextColor.DARK_GRAY, "weapon.ammo_note"));
-        }
-        lore.add(I18n.component(loc, NamedTextColor.DARK_GRAY, "weapon.controls"));
-
-        for (Component line : WeaponUpgradeEffects.loreUpgradeLines(st, loc)) {
-            lore.add(line);
-        }
         meta.lore(lore);
     }
 
-    private static String modeLine(WeaponProfile w, GameLocale loc) {
-        String mode = I18n.string(loc, "firemode." + w.fireMode().name());
-        if (w.isGrapplingHook()) {
-            return mode;
-        }
-        if (w.isNuclearWeapon()) {
-            return mode;
-        }
-        if (w.fireMode() == FireMode.PROJECTILE_SERUM_ZONE || w.fireMode() == FireMode.PROJECTILE_HEAL_DART) {
-            return mode;
-        }
-        return mode + " | " + I18n.string(loc, "weapon.stat_damage_total",
-                String.format(Locale.ROOT, "%.1f", w.baseDamage()),
-                String.format(Locale.ROOT, "%.1f", w.baseDamage() / 2.0));
+    private static Component stat(String label, String value) {
+        return Component.text()
+                .append(Component.text(label + ": ", NamedTextColor.GRAY)
+                        .decoration(TextDecoration.ITALIC, false))
+                .append(Component.text(value, NamedTextColor.WHITE)
+                        .decoration(TextDecoration.ITALIC, false))
+                .build();
     }
 
-    private static void appendCombatStats(List<Component> lore, WeaponProfile w, GameLocale loc, JerrycanUpgradeState jerrySt) {
-        lore.add(Component.text(modeLine(w, loc), NamedTextColor.GRAY));
-
-        if (w.pellets() > 1) {
-            double per = w.baseDamage() / w.pellets();
-            lore.add(I18n.component(loc, NamedTextColor.GRAY, "weapon.stat_damage_pellet",
-                    w.pellets(),
-                    String.format(Locale.ROOT, "%.2f", per),
-                    String.format(Locale.ROOT, "%.1f", w.baseDamage())));
-        }
-
-        int cdTicks = Math.max(1, w.cooldownTicks());
-        double cdSec = cdTicks / 20.0;
-        double rof = 1.0 / cdSec;
-        double dmg = w.baseDamage();
-        double burstDps = dmg * (20.0 / cdTicks);
-        lore.add(I18n.component(loc, NamedTextColor.GRAY, "weapon.stat_fire_rate", String.format(Locale.ROOT, "%.2f", rof)));
-        lore.add(I18n.component(loc, NamedTextColor.GREEN, "weapon.stat_burst_dps",
-                String.format(Locale.ROOT, "%.1f", burstDps),
-                String.format(Locale.ROOT, "%.1f", burstDps / 2.0)));
-
-        double reloadSec = w.reloadTicks() / 20.0;
-        lore.add(I18n.component(loc, NamedTextColor.GRAY, "weapon.stat_reload_time",
-                String.format(Locale.ROOT, "%.2f", reloadSec)));
-
-        int clip = w.clipSize() + (w == WeaponProfile.JERRYCAN ? JerrycanUpgradeEffects.clipBonus(jerrySt) : 0);
-        double cycleTicks = (long) clip * cdTicks + w.reloadTicks();
-        if (cycleTicks > 0 && clip > 0) {
-            double sustained = (clip * dmg) / (cycleTicks / 20.0);
-            lore.add(I18n.component(loc, NamedTextColor.DARK_GREEN, "weapon.stat_sustained_dps",
-                    String.format(Locale.ROOT, "%.1f", sustained)));
-        }
-
-        lore.add(I18n.component(loc, NamedTextColor.DARK_GRAY, "weapon.stat_range", (int) w.baseRange()));
-        lore.add(I18n.component(loc, NamedTextColor.DARK_GRAY, "weapon.stat_spread",
-                String.format(Locale.ROOT, "%.1f", w.baseSpreadDegrees())));
+    private static String l(GameLocale loc, String fr, String en) {
+        return loc == GameLocale.FR ? fr : en;
     }
 
-    private static boolean showsMagLine(WeaponProfile w) {
-        if (w.isGrapplingHook() || w.isNuclearWeapon()) {
-            return false;
+    private static String killMeterBar(int pct) {
+        int filled = (int) Math.round(pct / 10.0);
+        filled = Math.max(0, Math.min(10, filled));
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < 10; i++) {
+            sb.append(i < filled ? '\u2588' : '\u2591');
         }
-        if (w.fireMode() == FireMode.PROJECTILE_SERUM_ZONE || w.fireMode() == FireMode.PROJECTILE_GASOLINE) {
-            return false;
-        }
-        return w != WeaponProfile.JERRYCAN || w.clipSize() > 0;
-    }
-
-    private static boolean showsAmmoNote(WeaponProfile w) {
-        if (w.isGrapplingHook() || w.isNuclearWeapon()) {
-            return false;
-        }
-        return w.fireMode() != FireMode.PROJECTILE_SERUM_ZONE;
+        return sb.toString();
     }
 }

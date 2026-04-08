@@ -25,10 +25,15 @@ firemode:
   HITSCAN_CROSS: "Pompe en croix"
   PROJECTILE_GASOLINE: "Essence"
   PROJECTILE_BOMB: "Bombe"
+  PROJECTILE_CLIO3: "Roquette Clio"
+  PROJECTILE_MORTAR: "Mortier (cloche)"
+  PROJECTILE_ROCKET: "Lance-roquettes"
   NUCLEAR_STRIKE: "Nucléaire"
   GRAPPLE_BEAM: "Grappin"
   PROJECTILE_SERUM_ZONE: "Sérum de zone"
   PROJECTILE_HEAL_DART: "Soin par tir"
+  HITSCAN_BOW_CHARGE: "Rayon chargé (arc)"
+  TURRET_DEPLOY: "Tourelle"
 
 weapon:
   prefix: "Arme"
@@ -48,15 +53,33 @@ weapon:
   grapple_line1: "Sans dégâts — te propulse vers la cible"
   grapple_line2: "Long cooldown entre deux usages"
   serum_line1: "Flacon brisé au sol — pulsations sur plusieurs secondes"
+  clio3_note: "Obus visuel en pierre (forme voiture) — grosse explosion à l'impact"
+  mortier_line1: "Tir en cloche vers le bloc visé (portée stats)."
+  mortier_line2: "Atelier : Incendiaire / Barrage / Acide — une seule voie, 5 paliers."
+  mortar_table: "Atelier mortier : lingots d'or sur la table d'armement."
+  lance_roquette_line1: "Roquette explosive — grosse zone (amelio : explosion plus violente)."
+  lance_roquette_line2: "Atelier : Missile guide / Demolition / Drone — une voie, 5 paliers."
+  turret_line1: "Clic droit : pose la tourelle (blocs) et t'installe dessus"
+  turret_line2: "Monte : clic droit pour tirer (hitscan) | Sneak : range la tourelle"
+  turret_deployed: "Tourelle déployée."
+  turret_stowed: "Tourelle rangee."
+  turret_deploy_no_space: "Pas assez de place pour la tourelle (air requis)."
+  turret_deploy_cooldown: "Pose tourelle : encore {0}s"
+  rocket_table: "Atelier lance-roquettes : lingots d'or sur la table d'armement."
   serum_line2: "Rayon : {0} blocs"
   serum_line3: "Tous les joueurs dans la zone profitent du bonus"
   heal_dart_line1: "Touche un autre joueur pour le soigner"
   heal_dart_line2: "Soin de base : {0} demi-cœurs ({1} cœurs) par tir (upgrades inclus)"
   nuke_line1: "Zone marquée puis explosion (sans casse-blocs)"
+  traqueur_line1: "Maintiens le clic droit pour charger — relâche pour tirer (plus long = plus de portée et de dégâts)"
+  traqueur_line2: "En survie, une flèche factice peut être ajoutée pour tendre l’arc (non consommée au tir)."
   scope_line: "Sneak : lunette — Lenteur IV + FOV (vanilla)"
   heavy_line: "Très lourd : lenteur en main (niveau {0})"
   chestnut_extra: "Châtaignes explosives en zone"
   bomb_table: "Table : voies bombe (salve / rebond / surcharge)"
+  revolver_line1: "Atelier : 3 paliers dans l'ordre — double tir, explosions, division sur joueurs."
+  revolver_line2: "Remplace Assaut / Survie / Tech tant que l'atelier revolver est actif."
+  revolver_table: "Atelier revolver : lingots d'or, paliers I puis II puis III."
   reload_hold_weapon: "Tiens une arme pour recharger."
   reload_not_applicable: "Cette arme ne se recharge pas comme ça."
   reload_in_progress: "Rechargement..."
@@ -80,11 +103,15 @@ weapon:
   nuke_impact_broadcast: "[DPMR] Impact nucleaire ! Zone detruite (degats uniquement)."
   gas_ignite_ok: "Essence enflammee!"
   gas_ignite_none: "Aucune essence a enflammer."
+  minigun_overheat: "Minigun en surchauffe — laisse refroidir."
 
 upgrade:
   path_line: "Voie : {0} ({1})"
   tier_summary: "Palier {0}/5 — {1}"
   bomb_header: "Bombe — {0}"
+  mortar_header: "Mortier — {0}"
+  rocket_header: "Roquette — {0}"
+  revolver_header: "Ameliorations revolver"
   jerry_header: "J-20 — {0}"
 
 bandage:
@@ -96,6 +123,12 @@ bandage:
 common:
   no_permission: "Tu n'as pas la permission."
 
+vault:
+  title: "Coffre-fort ({0}/{1})"
+  hint_pages: "Accroupi + clic droit sur le bloc pour la page 2."
+  disabled: "Le coffre-fort est désactivé."
+  no_permission: "Tu ne peux pas utiliser le coffre-fort."
+
 airdrop:
   approaching: "[DPMR] Largage {0} en approche !"
   landed: "[DPMR] Largage {0} posé : {1} {2} {3}"
@@ -105,12 +138,78 @@ airdrop:
   type_medical: "Médical"
   type_techno: "Techno"
 
+balloon_chest:
+  popped: "Coffre ballon éclaté — butin reçu !"
+  spawn_hint: "[DPMR] Un coffre ballon flotte vers ~{0} ~{1} — tire dessus !"
+
 gui:
   give_main_title: "DPMR — Gives admin"
   give_consumables_title: "DPMR — Consommables"
   give_weapons_title: "DPMR — Armes"
   give_rarity_title: "DPMR — Par rareté"
   give_launchpads_title: "DPMR — Launchpads"
+
+conquerpass:
+  players_only: "Réservé aux joueurs."
+  disabled: "Le Conquer Pass est désactivé."
+  gui_title: "Conquer Pass"
+  info_title: "Ta progression"
+  season_label: "Saison : {0}"
+  xp_line: "XP : {0} · Paliers débloqués : {1}/{2}"
+  xp_to_next: "Palier suivant dans {0} XP"
+  track_complete: "Tous les paliers sont débloqués — récupère les récompenses restantes."
+  hint_xp: "Gagne de l''XP en PvP et en tuant des créatures hostiles."
+  page_prev: "Page précédente"
+  page_next: "Page suivante"
+  nav_active: "Cliquer pour naviguer"
+  nav_inactive: "Rien ici"
+  track_free: "Piste gratuite"
+  track_premium: "Piste premium"
+  tier_label: "Palier {0}"
+  locked_premium: "Nécessite le pass premium"
+  reward_points: "Récompense : {0} points"
+  reward_none: "Étape bonus (pas de points)"
+  state_locked: "Atteins ce palier pour réclamer"
+  state_claimed: "Récupéré"
+  state_need_pass: "Débloque le premium ci-dessous"
+  state_claim: "Cliquer pour réclamer"
+  premium_owned_title: "Premium débloqué"
+  premium_owned_lore: "Tu as accès à la piste premium."
+  premium_perm_title: "Accès premium"
+  premium_perm_lore: "Attribué par permission ou rôle — pas d''achat."
+  premium_buy_title: "Débloquer la piste premium"
+  premium_buy_cost: "Coût : {0} points"
+  premium_buy_click: "Cliquer pour acheter"
+  premium_perm_hint: "Le premium s''obtient par permission sur ce serveur."
+  premium_unlocked: "Piste premium débloquée !"
+  premium_already: "Tu as déjà le premium."
+  premium_no_points_price: "Le premium ne s''achète pas en points ici (permission uniquement)."
+  premium_not_enough_points: "Pas assez de points."
+  need_premium: "Débloque d''abord le pass premium."
+  not_unlocked: "Palier pas encore atteint."
+  already_claimed: "Déjà récupéré."
+  invalid_tier: "Palier invalide."
+  reward_granted: "Récompense récupérée (palier {0})."
+
+bounty:
+  new_target: "[Prime] {0} porte une prime de {1} pts !"
+  reward_kill: "+{0} pts de prime (elimination de {1})"
+  claimed_broadcast: "{0} a remporte la prime sur {1} (+{2} pts) !"
+
+killperk:
+  gui_title: "Choix d'amélioration"
+  click_to_take: "Cliquer pour prendre"
+  already_owned: "Déjà choisi"
+  taken: "Amélioration : {0}"
+  rapid_fire:
+    name: "Tir rapide"
+    desc: "Réduit le délai entre les tirs."
+  double_tap:
+    name: "Double tir"
+    desc: "Une 2e salve rapide (dégâts réduits)."
+  stabilizer:
+    name: "Stabilisateur"
+    desc: "Moins de dispersion."
 
 cmd:
   dpmr_usage: "Usage : /dpmr <start|stop|...>"

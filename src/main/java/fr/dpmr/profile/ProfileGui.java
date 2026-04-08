@@ -1,6 +1,8 @@
 package fr.dpmr.profile;
 
 import fr.dpmr.data.PointsManager;
+import fr.dpmr.mastery.MasteryTier;
+import fr.dpmr.trophy.TrophyManager;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.Bukkit;
@@ -21,10 +23,12 @@ public class ProfileGui implements Listener {
     private static final String TITLE = "Profil & Upgrades";
     private final PointsManager pointsManager;
     private final PlayerProfileManager profileManager;
+    private final TrophyManager trophyManager;
 
-    public ProfileGui(PointsManager pointsManager, PlayerProfileManager profileManager) {
+    public ProfileGui(PointsManager pointsManager, PlayerProfileManager profileManager, TrophyManager trophyManager) {
         this.pointsManager = pointsManager;
         this.profileManager = profileManager;
+        this.trophyManager = trophyManager;
     }
 
     public void open(Player player) {
@@ -45,6 +49,14 @@ public class ProfileGui implements Listener {
         List<Component> lore = new ArrayList<>();
         lore.add(Component.text("Points: " + pointsManager.getPoints(player.getUniqueId()), NamedTextColor.GOLD));
         lore.add(Component.text("Kills: " + pointsManager.getKills(player.getUniqueId()), NamedTextColor.RED));
+        MasteryTier m = MasteryTier.fromProgress(
+                pointsManager.getKills(player.getUniqueId()),
+                pointsManager.getPoints(player.getUniqueId()));
+        lore.add(Component.text("Mastery: " + m.chatTitle(), NamedTextColor.LIGHT_PURPLE));
+        lore.add(Component.text(
+                "Trophies: " + trophyManager.unlockedCount(player.getUniqueId()) + "/" + trophyManager.totalDefined()
+                        + " (/trophies)",
+                NamedTextColor.GREEN));
         lore.add(Component.text("Points depenses: " + profileManager.totalSpent(player.getUniqueId()), NamedTextColor.GRAY));
         meta.lore(lore);
         item.setItemMeta(meta);

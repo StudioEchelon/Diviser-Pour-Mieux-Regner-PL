@@ -40,7 +40,7 @@ public enum WeaponProfile {
             WeaponRarity.COMMON, ScopeProfile.NONE, -1),
 
     /** Fusil a pompe basique, rarete commune (texture grise). */
-    CM_SHOTGUN(Material.GOLDEN_HOE, "Pompe commune", NamedTextColor.GRAY, 3.8, 21, 6, 36, 50, 24,
+    CM_SHOTGUN(Material.GOLDEN_HOE, "Classique", NamedTextColor.GRAY, 10.0, 21, 6, 36, 50, 24,
             FireMode.HITSCAN, Particle.SMOKE, Sound.ENTITY_GENERIC_EXPLODE, 0.7f, 0.82f, 6.4, 10, 0, 3,
             WeaponRarity.COMMON, ScopeProfile.NONE, -1),
 
@@ -62,7 +62,7 @@ public enum WeaponProfile {
     CARABINE_MK18(Material.GOLDEN_PICKAXE, "Carabine MK18", NamedTextColor.GOLD, 6.8, 52, 30, 120, 32, 5,
             FireMode.HITSCAN, Particle.SMOKE, Sound.ENTITY_PIGLIN_BRUTE_ANGRY, 0.82f, 1.08f, 1.35, 1, 0, 3, WeaponRarity.UNCOMMON, ScopeProfile.NONE, -1),
 
-    FUSIL_POMPE_RL(Material.BRUSH, "Fusil a pompe", NamedTextColor.DARK_GRAY, 4.2, 22, 7, 42, 48, 22,
+    FUSIL_POMPE_RL(Material.BRUSH, "Fusil a pompe", NamedTextColor.DARK_GRAY, 13.0, 22, 7, 42, 48, 22,
             FireMode.HITSCAN, Particle.SMOKE, Sound.ENTITY_GENERIC_EXPLODE, 0.72f, 0.82f, 6.2, 10, 0, 3, WeaponRarity.UNCOMMON, ScopeProfile.NONE, -1),
 
     NOVA(Material.BLAZE_ROD, "NOVA", NamedTextColor.GOLD, 6.0, 52, 14, 56, 28, 2,
@@ -71,10 +71,10 @@ public enum WeaponProfile {
     PULSE(Material.IRON_HORSE_ARMOR, "PULSE", NamedTextColor.AQUA, 5.0, 48, 16, 64, 25, 2,
             FireMode.HITSCAN, Particle.ELECTRIC_SPARK, Sound.ENTITY_EVOKER_CAST_SPELL, 0.7f, 1.5f, 1.0, 1, 0, 4, WeaponRarity.UNCOMMON, ScopeProfile.NONE, -1),
 
-    /** Mitraillette Thompson : skins vendus a part (PDC {@code weapon_cosmetic}). Item de base : spyglass. */
-    THOMPSON(Material.SPYGLASS, "Thompson", NamedTextColor.GOLD, 6.0, 44, 28, 112, 30, 3,
+    /** Mitraillette Thompson : skins vendus a part (PDC {@code weapon_cosmetic}). Item de base : carrot_on_a_stick (CMD fiable). */
+    THOMPSON(Material.CARROT_ON_A_STICK, "Thompson", NamedTextColor.GRAY, 6.0, 44, 28, 112, 30, 3,
             FireMode.HITSCAN, Particle.SMOKE, Sound.ENTITY_IRON_GOLEM_ATTACK, 0.78f, 1.12f, 2.4, 1, 0, 3,
-            WeaponRarity.UNCOMMON, ScopeProfile.NONE, -1),
+            WeaponRarity.COMMON, ScopeProfile.NONE, -1),
 
     UC_EPEE_BOIS(Material.WOODEN_SWORD, "Rapiere bois", NamedTextColor.GOLD, 5.4, 41, 14, 56, 27, 4,
             FireMode.HITSCAN, Particle.SWEEP_ATTACK, Sound.ENTITY_PLAYER_ATTACK_WEAK, 0.5f, 1.3f, 1.5, 1, 0, 3, WeaponRarity.UNCOMMON,
@@ -148,7 +148,7 @@ public enum WeaponProfile {
      * Sniper d'appoint (rare) : lunette comme les snipers, mais moins de degats et moins precis
      * que Dragunov / AWP.
      */
-    CARABINE_RARE(Material.IRON_PICKAXE, "Carabine rare", NamedTextColor.AQUA,
+    CARABINE_RARE(Material.IRON_PICKAXE, "Carabine", NamedTextColor.AQUA,
             10.0, 70, 12, 48, 46, 11,
             FireMode.HITSCAN, Particle.ELECTRIC_SPARK, Sound.ENTITY_ARROW_SHOOT, 0.88f, 0.78f, 0.42, 1, 0, 3,
             WeaponRarity.RARE,
@@ -175,9 +175,9 @@ public enum WeaponProfile {
             FireMode.HITSCAN, Particle.END_ROD, Sound.ENTITY_PHANTOM_FLAP, 0.73f, 0.93f, 0.68, 1, 0, 5, WeaponRarity.EPIC,
             ScopeProfile.NONE, -1),
 
-    EP_REVOLVER_CYBER(Material.STICK, "Revolver cyber", NamedTextColor.AQUA, 6.5, 32, 6, 30, 34, 7,
+    EP_REVOLVER_CYBER(Material.STICK, "Cyber", NamedTextColor.AQUA, 6.5, 32, 6, 30, 34, 7,
             FireMode.HITSCAN, Particle.ELECTRIC_SPARK, Sound.ENTITY_IRON_GOLEM_ATTACK, 0.52f, 1.55f, 1.85, 1, 0, 3,
-            WeaponRarity.EPIC, ScopeProfile.NONE, -1),
+            WeaponRarity.RARE, ScopeProfile.NONE, -1),
 
     GRAPPIN_RL(Material.FISHING_ROD, "Pistolet-grappin", NamedTextColor.AQUA, 0.0, 38, 10, 40, 35, 0,
             FireMode.GRAPPLE_BEAM, Particle.ENCHANT, Sound.ENTITY_FISHING_BOBBER_RETRIEVE, 0.7f, 1.25f, 0.0, 1, 0, 4, WeaponRarity.EPIC, ScopeProfile.NONE, -1),
@@ -193,16 +193,16 @@ public enum WeaponProfile {
             FireMode.HITSCAN, Particle.SOUL, Sound.ENTITY_WITHER_SHOOT, 0.92f, 0.62f, 0.14, 1, 0, 2, WeaponRarity.EPIC,
             ScopeProfile.sniper(0.019, 1.62, 1.25, 22), -1),
 
-    /** Pompe a canon lisse, rarete epique (texture violette). */
-    EP_FUSIL_POMPE(Material.DIAMOND_HOE, "Fusil a pompe epique", NamedTextColor.LIGHT_PURPLE,
-            7.5, 21, 8, 40, 46, 20,
+    /** Pompe a canon lisse, rarete legendaire. */
+    EP_FUSIL_POMPE(Material.DIAMOND_HOE, "\u00c9pique", NamedTextColor.GOLD,
+            15.0, 21, 8, 40, 46, 20,
             FireMode.HITSCAN, Particle.DRAGON_BREATH, Sound.ENTITY_GENERIC_EXPLODE, 0.78f, 0.84f, 5.6, 10, 0, 5,
-            WeaponRarity.EPIC, ScopeProfile.NONE, -1),
+            WeaponRarity.LEGENDARY, ScopeProfile.NONE, -1),
 
-    EP_POMPE_ACIDE(Material.IRON_SHOVEL, "Pompe acide", NamedTextColor.GREEN,
-            8.2, 20, 7, 35, 42, 20,
+    EP_POMPE_ACIDE(Material.IRON_SHOVEL, "Acide", NamedTextColor.GREEN,
+            15.5, 20, 7, 35, 42, 20,
             FireMode.HITSCAN, Particle.DRIPPING_DRIPSTONE_LAVA, Sound.ENTITY_SLIME_JUMP, 0.76f, 0.88f, 5.8, 10, 0, 4,
-            WeaponRarity.EPIC, ScopeProfile.NONE, -1),
+            WeaponRarity.RARE, ScopeProfile.NONE, -1),
 
     // --- Legendaire ---
     AWP(Material.TRIPWIRE_HOOK, "AWP", NamedTextColor.DARK_GREEN, 18.0, 95, 5, 15, 65, 22,
@@ -225,8 +225,13 @@ public enum WeaponProfile {
 
     /** Double canon classique : 2 cartouches, salve dense. */
     LG_POMPE_DOUBLE(Material.STONE_HOE, "Pompe double", NamedTextColor.GOLD,
-            13.5, 17, 2, 14, 52, 28,
+            16.5, 17, 2, 14, 52, 28,
             FireMode.HITSCAN, Particle.SMOKE, Sound.ENTITY_GENERIC_EXPLODE, 0.85f, 0.72f, 7.2, 12, 0, 4,
+            WeaponRarity.LEGENDARY, ScopeProfile.NONE, -1),
+
+    DOUBLE_PULSE(Material.DIAMOND_HORSE_ARMOR, "Double pulse", NamedTextColor.GOLD,
+            8.5, 52, 24, 72, 28, 2,
+            FireMode.HITSCAN, Particle.ELECTRIC_SPARK, Sound.ENTITY_EVOKER_CAST_SPELL, 0.75f, 1.4f, 0.8, 1, 0, 5,
             WeaponRarity.LEGENDARY, ScopeProfile.NONE, -1),
 
     // --- Mythique ---
@@ -235,8 +240,8 @@ public enum WeaponProfile {
             FireMode.HITSCAN, Particle.FLAME, Sound.ENTITY_GENERIC_EXPLODE,
             1.0f, 0.78f, 7.5, 10, 0, 4, WeaponRarity.MYTHIC, ScopeProfile.NONE, -1),
 
-    INFERNO(Material.FIRE_CHARGE, "INFERNO", NamedTextColor.RED, 9.5, 42, 7, 21, 34, 4,
-            FireMode.HITSCAN, Particle.FLAME, Sound.ITEM_FIRECHARGE_USE, 1.0f, 1.15f, 1.0, 1, 0, 5, WeaponRarity.LEGENDARY, ScopeProfile.NONE, -1),
+    INFERNO(Material.FIRE_CHARGE, "Feu", NamedTextColor.RED, 9.5, 42, 7, 21, 34, 4,
+            FireMode.HITSCAN, Particle.FLAME, Sound.ITEM_FIRECHARGE_USE, 1.0f, 1.15f, 1.0, 1, 0, 5, WeaponRarity.EPIC, ScopeProfile.NONE, -1),
 
     LG_ANCRE(Material.RESPAWN_ANCHOR, "Ancre du vide", NamedTextColor.RED, 14.2, 93, 4, 14, 66, 21,
             FireMode.HITSCAN, Particle.REVERSE_PORTAL, Sound.BLOCK_RESPAWN_ANCHOR_DEPLETE, 0.91f, 0.64f, 0.15, 1, 0, 3, WeaponRarity.LEGENDARY,
@@ -253,10 +258,10 @@ public enum WeaponProfile {
     THUNDER(Material.NETHER_STAR, "THUNDER", NamedTextColor.AQUA, 12.0, 62, 3, 9, 72, 12,
             FireMode.HITSCAN, Particle.SONIC_BOOM, Sound.ENTITY_WARDEN_SONIC_BOOM, 1.0f, 0.55f, 0.18, 1, 0, 1, WeaponRarity.MYTHIC, ScopeProfile.NONE, -1),
 
-    LG_POMPE_DOUBLE_CYBER(Material.NETHERITE_PICKAXE, "Pompe double cyber", NamedTextColor.DARK_AQUA,
-            16.0, 18, 2, 12, 54, 26,
+    LG_POMPE_DOUBLE_CYBER(Material.NETHERITE_PICKAXE, "Double cyber", NamedTextColor.DARK_AQUA,
+            18.5, 18, 2, 12, 54, 26,
             FireMode.HITSCAN, Particle.ELECTRIC_SPARK, Sound.ENTITY_GENERIC_EXPLODE, 0.9f, 0.88f, 6.9, 12, 0, 5,
-            WeaponRarity.MYTHIC, ScopeProfile.NONE, -1),
+            WeaponRarity.EPIC, ScopeProfile.NONE, -1),
 
     LG_TETE_DRAGON(Material.DRAGON_HEAD, "Rugissement", NamedTextColor.DARK_PURPLE, 13.5, 90, 4, 16, 62, 20,
             FireMode.HITSCAN, Particle.DRAGON_BREATH, Sound.ENTITY_ENDER_DRAGON_GROWL, 0.9f, 0.68f, 0.18, 1, 0, 3, WeaponRarity.MYTHIC,
@@ -587,6 +592,25 @@ public enum WeaponProfile {
         return switch (damageType()) {
             case PISTOL, SMG, ASSAULT_RIFLE, SHOTGUN, SNIPER, EXPLOSIVE -> true;
             case UTILITY -> false;
+        };
+    }
+
+    /**
+     * Armes « à feu » rayonnées : jauge de kills + perks roguelike (pas outils / explosifs / tourelle / couteau).
+     */
+    public boolean supportsKillPerkMeter() {
+        if (this == COUTEAU_COMBAT) {
+            return false;
+        }
+        if (isTurretWeapon() || isNuclearWeapon()) {
+            return false;
+        }
+        if (damageType() == WeaponDamageType.EXPLOSIVE || damageType() == WeaponDamageType.UTILITY) {
+            return false;
+        }
+        return switch (fireMode) {
+            case HITSCAN, HITSCAN_CROSS, HITSCAN_BOW_CHARGE -> true;
+            default -> false;
         };
     }
 }

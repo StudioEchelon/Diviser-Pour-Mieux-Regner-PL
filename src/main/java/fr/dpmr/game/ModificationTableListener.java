@@ -1,5 +1,6 @@
 package fr.dpmr.game;
 
+import fr.dpmr.i18n.GameLocale;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import net.kyori.adventure.text.format.TextDecoration;
@@ -37,7 +38,7 @@ import java.util.UUID;
 
 public class ModificationTableListener implements Listener {
 
-    public static final Component GUI_TITLE = Component.text("⚒ Atelier d'armement", NamedTextColor.GOLD, TextDecoration.BOLD);
+    public static final Component GUI_TITLE = Component.text("⚒ Armory bench", NamedTextColor.GOLD, TextDecoration.BOLD);
 
     private static final int SLOT_WEAPON = 13;
     private static final int SLOT_INFO = 4;
@@ -171,7 +172,7 @@ public class ModificationTableListener implements Listener {
     private void openWorkshop(Player player, Block table) {
         ItemStack main = player.getInventory().getItemInMainHand();
         if (weaponManager.readWeaponId(main) == null) {
-            player.sendMessage(Component.text("Tiens une arme DPMR en main pour l'atelier.", NamedTextColor.RED));
+            player.sendMessage(Component.text("Hold a DPMR weapon to use the bench.", NamedTextColor.RED));
             ModificationTableFx.playAccessDenied(player, table);
             return;
         }
@@ -188,7 +189,10 @@ public class ModificationTableListener implements Listener {
         fillTierHeaders(inv);
         WeaponProfile wp = WeaponProfile.fromId(weaponManager.readWeaponId(put));
         inv.setItem(SLOT_INFO, wp != null && wp.isBombWeapon() ? bombInfoBook()
-                : (wp == WeaponProfile.JERRYCAN ? jerryInfoBook() : infoBook()));
+                : (wp != null && wp.isMortarWeapon() ? mortarInfoBook()
+                : (wp != null && wp.isRocketWeapon() ? rocketInfoBook()
+                : (wp != null && wp.isRevolverWorkshopWeapon() ? revolverInfoBook()
+                : (wp == WeaponProfile.JERRYCAN ? jerryInfoBook() : infoBook())))));
         inv.setItem(SLOT_WEAPON, put);
         inv.setItem(SLOT_CLOSE, closeButton());
         refreshPathButtons(inv, put);
@@ -204,18 +208,18 @@ public class ModificationTableListener implements Listener {
     private static ItemStack infoBook() {
         ItemStack book = new ItemStack(Material.KNOWLEDGE_BOOK);
         ItemMeta meta = book.getItemMeta();
-        meta.displayName(Component.text("Trois voies · une seule active", NamedTextColor.AQUA, TextDecoration.BOLD));
+        meta.displayName(Component.text("Three paths · one active", NamedTextColor.AQUA, TextDecoration.BOLD));
         meta.lore(List.of(
-                Component.text("Chaque ligne est une spécialisation.", NamedTextColor.GRAY),
+                Component.text("Each row is a specialization.", NamedTextColor.GRAY),
                 Component.empty(),
-                Component.text("Assaut — ", NamedTextColor.DARK_RED, TextDecoration.BOLD)
-                        .append(Component.text("dégâts, cadence, explosions", NamedTextColor.RED)),
-                Component.text("Survie — ", NamedTextColor.DARK_GREEN, TextDecoration.BOLD)
-                        .append(Component.text("munitions, recharge, vol de vie", NamedTextColor.GREEN)),
+                Component.text("Assault — ", NamedTextColor.DARK_RED, TextDecoration.BOLD)
+                        .append(Component.text("damage, fire rate, explosions", NamedTextColor.RED)),
+                Component.text("Survival — ", NamedTextColor.DARK_GREEN, TextDecoration.BOLD)
+                        .append(Component.text("ammo, reload, lifesteal", NamedTextColor.GREEN)),
                 Component.text("Tech — ", NamedTextColor.DARK_AQUA, TextDecoration.BOLD)
-                        .append(Component.text("précision, portée, chaînes", NamedTextColor.AQUA)),
+                        .append(Component.text("accuracy, range, chains", NamedTextColor.AQUA)),
                 Component.empty(),
-                Component.text("Paiement : lingots d'or (voir chaque palier).", NamedTextColor.DARK_GRAY, TextDecoration.ITALIC)
+                Component.text("Payment: gold ingots (see each tier).", NamedTextColor.DARK_GRAY, TextDecoration.ITALIC)
         ));
         book.setItemMeta(meta);
         return book;
@@ -224,16 +228,70 @@ public class ModificationTableListener implements Listener {
     private static ItemStack bombInfoBook() {
         ItemStack book = new ItemStack(Material.TNT_MINECART);
         ItemMeta meta = book.getItemMeta();
-        meta.displayName(Component.text("Bombe · trois voies exclusives", NamedTextColor.RED, TextDecoration.BOLD));
+        meta.displayName(Component.text("Bomb · three exclusive paths", NamedTextColor.RED, TextDecoration.BOLD));
         meta.lore(List.of(
-                Component.text("Salve — ", NamedTextColor.GOLD, TextDecoration.BOLD)
-                        .append(Component.text("plus de bombes par tir", NamedTextColor.YELLOW)),
-                Component.text("Rebond — ", NamedTextColor.AQUA, TextDecoration.BOLD)
-                        .append(Component.text("ricoche sur les murs", NamedTextColor.GRAY)),
-                Component.text("Cataclysme — ", NamedTextColor.DARK_PURPLE, TextDecoration.BOLD)
-                        .append(Component.text("zone et dégâts", NamedTextColor.LIGHT_PURPLE)),
+                Component.text("Salvo — ", NamedTextColor.GOLD, TextDecoration.BOLD)
+                        .append(Component.text("more bombs per shot", NamedTextColor.YELLOW)),
+                Component.text("Ricochet — ", NamedTextColor.AQUA, TextDecoration.BOLD)
+                        .append(Component.text("bounces off walls", NamedTextColor.GRAY)),
+                Component.text("Cataclysm — ", NamedTextColor.DARK_PURPLE, TextDecoration.BOLD)
+                        .append(Component.text("area and damage", NamedTextColor.LIGHT_PURPLE)),
                 Component.empty(),
-                Component.text("Paiement : lingots d'or.", NamedTextColor.DARK_GRAY, TextDecoration.ITALIC)
+                Component.text("Payment: gold ingots.", NamedTextColor.DARK_GRAY, TextDecoration.ITALIC)
+        ));
+        book.setItemMeta(meta);
+        return book;
+    }
+
+    private static ItemStack mortarInfoBook() {
+        ItemStack book = new ItemStack(Material.TARGET);
+        ItemMeta meta = book.getItemMeta();
+        meta.displayName(Component.text("Mortar · three exclusive paths", NamedTextColor.GOLD, TextDecoration.BOLD));
+        meta.lore(List.of(
+                Component.text("Incendiary — ", NamedTextColor.DARK_RED, TextDecoration.BOLD)
+                        .append(Component.text("area damage, burn, wider zone", NamedTextColor.RED)),
+                Component.text("Barrage — ", NamedTextColor.YELLOW, TextDecoration.BOLD)
+                        .append(Component.text("multiple shells per arcing shot", NamedTextColor.GOLD)),
+                Component.text("Acid — ", NamedTextColor.DARK_GREEN, TextDecoration.BOLD)
+                        .append(Component.text("poison, slow, lingering cloud", NamedTextColor.GREEN)),
+                Component.empty(),
+                Component.text("Payment: gold ingots.", NamedTextColor.DARK_GRAY, TextDecoration.ITALIC)
+        ));
+        book.setItemMeta(meta);
+        return book;
+    }
+
+    private static ItemStack rocketInfoBook() {
+        ItemStack book = new ItemStack(Material.FIREWORK_ROCKET);
+        ItemMeta meta = book.getItemMeta();
+        meta.displayName(Component.text("Rocket launcher · three exclusive paths", NamedTextColor.RED, TextDecoration.BOLD));
+        meta.lore(List.of(
+                Component.text("Guided missile — ", NamedTextColor.AQUA, TextDecoration.BOLD)
+                        .append(Component.text("locks the nearest target", NamedTextColor.GRAY)),
+                Component.text("Demolition — ", NamedTextColor.GOLD, TextDecoration.BOLD)
+                        .append(Component.text("radius and blast damage", NamedTextColor.YELLOW)),
+                Component.text("Drone — ", NamedTextColor.DARK_PURPLE, TextDecoration.BOLD)
+                        .append(Component.text("deploys a drone that strafes nearby", NamedTextColor.LIGHT_PURPLE)),
+                Component.empty(),
+                Component.text("Payment: gold ingots.", NamedTextColor.DARK_GRAY, TextDecoration.ITALIC)
+        ));
+        book.setItemMeta(meta);
+        return book;
+    }
+
+    private static ItemStack revolverInfoBook() {
+        ItemStack book = new ItemStack(Material.STICK);
+        ItemMeta meta = book.getItemMeta();
+        meta.displayName(Component.text("Revolver — 3 tiers (in order)", NamedTextColor.GRAY, TextDecoration.BOLD));
+        meta.lore(List.of(
+                Component.text("I — ", NamedTextColor.YELLOW, TextDecoration.BOLD)
+                        .append(Component.text("2 hits per shot, x2 cylinder, fire rate", NamedTextColor.GOLD)),
+                Component.text("II — ", NamedTextColor.RED, TextDecoration.BOLD)
+                        .append(Component.text("area explosion on each hit", NamedTextColor.RED)),
+                Component.text("III — ", NamedTextColor.LIGHT_PURPLE, TextDecoration.BOLD)
+                        .append(Component.text("hit a player: 4 piercing projectiles", NamedTextColor.GRAY)),
+                Component.empty(),
+                Component.text("Payment: gold ingots. Unlock I, then II, then III.", NamedTextColor.DARK_GRAY, TextDecoration.ITALIC)
         ));
         book.setItemMeta(meta);
         return book;
@@ -242,16 +300,16 @@ public class ModificationTableListener implements Listener {
     private static ItemStack jerryInfoBook() {
         ItemStack book = new ItemStack(Material.LAVA_BUCKET);
         ItemMeta meta = book.getItemMeta();
-        meta.displayName(Component.text("J-20 · trois voies exclusives", NamedTextColor.GOLD, TextDecoration.BOLD));
+        meta.displayName(Component.text("J-20 · three exclusive paths", NamedTextColor.GOLD, TextDecoration.BOLD));
         meta.lore(List.of(
                 Component.text("A — ", NamedTextColor.DARK_RED, TextDecoration.BOLD)
                         .append(Component.text("Expansion thermique", NamedTextColor.RED)),
                 Component.text("B — ", NamedTextColor.DARK_GREEN, TextDecoration.BOLD)
                         .append(Component.text("Persistance visqueuse", NamedTextColor.GREEN)),
                 Component.text("C — ", NamedTextColor.YELLOW, TextDecoration.BOLD)
-                        .append(Component.text("Tactique de brèche", NamedTextColor.GOLD)),
+                        .append(Component.text("Breach tactics", NamedTextColor.GOLD)),
                 Component.empty(),
-                Component.text("Paiement : lingots d'or.", NamedTextColor.DARK_GRAY, TextDecoration.ITALIC)
+                Component.text("Payment: gold ingots.", NamedTextColor.DARK_GRAY, TextDecoration.ITALIC)
         ));
         book.setItemMeta(meta);
         return book;
@@ -260,10 +318,10 @@ public class ModificationTableListener implements Listener {
     private static ItemStack closeButton() {
         ItemStack b = new ItemStack(Material.IRON_DOOR);
         ItemMeta m = b.getItemMeta();
-        m.displayName(Component.text("Quitter l'atelier", NamedTextColor.WHITE, TextDecoration.BOLD));
+        m.displayName(Component.text("Leave bench", NamedTextColor.WHITE, TextDecoration.BOLD));
         m.lore(List.of(
-                Component.text("Récupère ton arme dans ton inventaire.", NamedTextColor.GRAY),
-                Component.text("Fermer", NamedTextColor.DARK_GRAY, TextDecoration.ITALIC)
+                Component.text("Your weapon is in your inventory.", NamedTextColor.GRAY),
+                Component.text("Close", NamedTextColor.DARK_GRAY, TextDecoration.ITALIC)
         ));
         b.setItemMeta(m);
         return b;
@@ -274,8 +332,8 @@ public class ModificationTableListener implements Listener {
         for (int t = 0; t < 5; t++) {
             ItemStack p = new ItemStack(Material.LIGHT_GRAY_STAINED_GLASS_PANE);
             ItemMeta m = p.getItemMeta();
-            m.displayName(Component.text("Palier " + romans[t], NamedTextColor.GRAY, TextDecoration.ITALIC));
-            m.lore(List.of(Component.text("De gauche à droite", NamedTextColor.DARK_GRAY)));
+            m.displayName(Component.text("Tier " + romans[t], NamedTextColor.GRAY, TextDecoration.ITALIC));
+            m.lore(List.of(Component.text("Left to right", NamedTextColor.DARK_GRAY)));
             p.setItemMeta(m);
             inv.setItem(SLOT_TIER_HEADER[t], p);
         }
@@ -324,6 +382,20 @@ public class ModificationTableListener implements Listener {
                 }
             }
         }
+        for (MortarUpgradePath p : MortarUpgradePath.values()) {
+            for (int t = 1; t <= 5; t++) {
+                if (slotForMortar(p, t) == i) {
+                    return true;
+                }
+            }
+        }
+        for (RocketUpgradePath p : RocketUpgradePath.values()) {
+            for (int t = 1; t <= 5; t++) {
+                if (slotForRocket(p, t) == i) {
+                    return true;
+                }
+            }
+        }
         return false;
     }
 
@@ -339,6 +411,19 @@ public class ModificationTableListener implements Listener {
         return 19 + path.ordinal() * 9 + (tier - 1);
     }
 
+    private static int slotForMortar(MortarUpgradePath path, int tier) {
+        return 19 + path.ordinal() * 9 + (tier - 1);
+    }
+
+    private static int slotForRocket(RocketUpgradePath path, int tier) {
+        return 19 + path.ordinal() * 9 + (tier - 1);
+    }
+
+    /** Paliers I–III sur la premiere ligne d'upgrade (colonnes I, II, III). */
+    private static int slotForRevolverTier(int tier) {
+        return 18 + tier;
+    }
+
     private void refreshPathButtons(Inventory inv, ItemStack weapon) {
         WeaponProfile wp = WeaponProfile.fromId(weaponManager.readWeaponId(weapon));
         if (wp != null && wp.isBombWeapon()) {
@@ -350,6 +435,36 @@ public class ModificationTableListener implements Listener {
                 }
             }
             applyBombPathRowLabels(inv);
+            return;
+        }
+        if (wp != null && wp.isMortarWeapon()) {
+            MortarUpgradeState current = MortarUpgradeState.read(weapon, plugin);
+            for (MortarUpgradePath path : MortarUpgradePath.values()) {
+                for (int tier = 1; tier <= 5; tier++) {
+                    int slot = slotForMortar(path, tier);
+                    inv.setItem(slot, iconMortar(weapon, current, path, tier));
+                }
+            }
+            applyMortarPathRowLabels(inv);
+            return;
+        }
+        if (wp != null && wp.isRocketWeapon()) {
+            RocketUpgradeState current = RocketUpgradeState.read(weapon, plugin);
+            for (RocketUpgradePath path : RocketUpgradePath.values()) {
+                for (int tier = 1; tier <= 5; tier++) {
+                    int slot = slotForRocket(path, tier);
+                    inv.setItem(slot, iconRocket(weapon, current, path, tier));
+                }
+            }
+            applyRocketPathRowLabels(inv);
+            return;
+        }
+        if (wp != null && wp.isRevolverWorkshopWeapon()) {
+            RevolverUpgradeState current = RevolverUpgradeState.read(weapon, plugin);
+            for (int tier = 1; tier <= 3; tier++) {
+                inv.setItem(slotForRevolverTier(tier), iconRevolver(weapon, current, tier));
+            }
+            applyRevolverPathRowLabels(inv);
             return;
         }
         if (wp == WeaponProfile.JERRYCAN) {
@@ -391,6 +506,37 @@ public class ModificationTableListener implements Listener {
         inv.setItem(SLOT_PATH_C, pathRowLabelJerry(Material.NETHERITE_SCRAP, NamedTextColor.YELLOW, JerrycanUpgradePath.BREACH));
     }
 
+    private static void applyMortarPathRowLabels(Inventory inv) {
+        inv.setItem(SLOT_PATH_A, pathRowLabelMortar(Material.BLAZE_POWDER, NamedTextColor.DARK_RED, MortarUpgradePath.INCENDIARY));
+        inv.setItem(SLOT_PATH_B, pathRowLabelMortar(Material.FIREWORK_ROCKET, NamedTextColor.GOLD, MortarUpgradePath.BARRAGE));
+        inv.setItem(SLOT_PATH_C, pathRowLabelMortar(Material.SLIME_BALL, NamedTextColor.DARK_GREEN, MortarUpgradePath.ACID));
+    }
+
+    private static void applyRocketPathRowLabels(Inventory inv) {
+        inv.setItem(SLOT_PATH_A, pathRowLabelRocket(Material.SPECTRAL_ARROW, NamedTextColor.AQUA, RocketUpgradePath.GUIDED));
+        inv.setItem(SLOT_PATH_B, pathRowLabelRocket(Material.TNT, NamedTextColor.GOLD, RocketUpgradePath.DEVASTATOR));
+        inv.setItem(SLOT_PATH_C, pathRowLabelRocket(Material.IRON_HORSE_ARMOR, NamedTextColor.LIGHT_PURPLE, RocketUpgradePath.DRONE));
+    }
+
+    private static void applyRevolverPathRowLabels(Inventory inv) {
+        inv.setItem(SLOT_PATH_A, pathRowLabelRevolverHeader());
+        inv.setItem(SLOT_PATH_B, pane(Material.GRAY_STAINED_GLASS_PANE, " "));
+        inv.setItem(SLOT_PATH_C, pane(Material.GRAY_STAINED_GLASS_PANE, " "));
+    }
+
+    private static ItemStack pathRowLabelRevolverHeader() {
+        ItemStack s = new ItemStack(Material.GOLD_NUGGET);
+        ItemMeta m = s.getItemMeta();
+        m.displayName(Component.text("Revolver upgrades", NamedTextColor.GOLD, TextDecoration.BOLD));
+        m.lore(List.of(
+                Component.text("Buy all three chips I, II, III (top row).", NamedTextColor.GRAY),
+                Component.empty(),
+                Component.text("Replaces Assault / Survival / Tech paths.", NamedTextColor.DARK_RED, TextDecoration.ITALIC)
+        ));
+        s.setItemMeta(m);
+        return s;
+    }
+
     private static ItemStack pathRowLabelWeapon(Material mat, NamedTextColor accent, WeaponUpgradePath path) {
         ItemStack s = new ItemStack(mat);
         ItemMeta m = s.getItemMeta();
@@ -398,7 +544,7 @@ public class ModificationTableListener implements Listener {
         m.lore(List.of(
                 Component.text(path.blurb(), NamedTextColor.GRAY),
                 Component.empty(),
-                Component.text("→ Paliers I à V sur cette ligne", NamedTextColor.DARK_GRAY, TextDecoration.ITALIC)
+                Component.text("→ Tiers I–V on this row", NamedTextColor.DARK_GRAY, TextDecoration.ITALIC)
         ));
         s.setItemMeta(m);
         return s;
@@ -411,7 +557,7 @@ public class ModificationTableListener implements Listener {
         m.lore(List.of(
                 Component.text(path.blurb(), NamedTextColor.GRAY),
                 Component.empty(),
-                Component.text("→ Paliers I à V sur cette ligne", NamedTextColor.DARK_GRAY, TextDecoration.ITALIC)
+                Component.text("→ Tiers I–V on this row", NamedTextColor.DARK_GRAY, TextDecoration.ITALIC)
         ));
         s.setItemMeta(m);
         return s;
@@ -424,10 +570,187 @@ public class ModificationTableListener implements Listener {
         m.lore(List.of(
                 Component.text(path.blurb(), NamedTextColor.GRAY),
                 Component.empty(),
-                Component.text("→ Paliers I à V sur cette ligne", NamedTextColor.DARK_GRAY, TextDecoration.ITALIC)
+                Component.text("→ Tiers I–V on this row", NamedTextColor.DARK_GRAY, TextDecoration.ITALIC)
         ));
         s.setItemMeta(m);
         return s;
+    }
+
+    private static ItemStack pathRowLabelMortar(Material mat, NamedTextColor accent, MortarUpgradePath path) {
+        ItemStack s = new ItemStack(mat);
+        ItemMeta m = s.getItemMeta();
+        m.displayName(Component.text(path.styleName(), accent, TextDecoration.BOLD));
+        m.lore(List.of(
+                Component.text(path.blurb(), NamedTextColor.GRAY),
+                Component.empty(),
+                Component.text("→ Tiers I–V on this row", NamedTextColor.DARK_GRAY, TextDecoration.ITALIC)
+        ));
+        s.setItemMeta(m);
+        return s;
+    }
+
+    private static ItemStack pathRowLabelRocket(Material mat, NamedTextColor accent, RocketUpgradePath path) {
+        ItemStack s = new ItemStack(mat);
+        ItemMeta m = s.getItemMeta();
+        m.displayName(Component.text(path.styleName(), accent, TextDecoration.BOLD));
+        m.lore(List.of(
+                Component.text(path.blurb(), NamedTextColor.GRAY),
+                Component.empty(),
+                Component.text("→ Tiers I–V on this row", NamedTextColor.DARK_GRAY, TextDecoration.ITALIC)
+        ));
+        s.setItemMeta(m);
+        return s;
+    }
+
+    private ItemStack iconMortar(ItemStack weapon, MortarUpgradeState current, MortarUpgradePath path, int tier) {
+        boolean lockedPath = MortarUpgradeEffects.pathLocked(current, path);
+        boolean owned = MortarUpgradeEffects.tierOwned(current, path, tier);
+        boolean canBuy = MortarUpgradeEffects.canBuyTier(current, path, tier);
+        int cost = MortarUpgradeEffects.goldCostForTier(tier);
+
+        if (lockedPath) {
+            return pane(Material.RED_STAINED_GLASS_PANE, "Path locked",
+                    List.of(
+                            Component.text("Another mortar path is already taken.", NamedTextColor.DARK_RED),
+                            Component.text("Switch weapon to reset.", NamedTextColor.GRAY, TextDecoration.ITALIC)
+                    ));
+        }
+        if (owned) {
+            ItemStack ok = new ItemStack(Material.EMERALD);
+            ItemMeta m = ok.getItemMeta();
+            m.displayName(Component.text(MortarUpgradeEffects.tierTitle(path, tier), NamedTextColor.GREEN, TextDecoration.BOLD));
+            m.lore(mortarLore(path, tier, loreOwnedBadge()));
+            m.addItemFlags(ItemFlag.HIDE_ATTRIBUTES);
+            ok.setItemMeta(m);
+            return ok;
+        }
+        if (canBuy) {
+            ItemStack gold = new ItemStack(Material.GOLD_INGOT);
+            ItemMeta meta = gold.getItemMeta();
+            meta.displayName(Component.text(MortarUpgradeEffects.tierTitle(path, tier), NamedTextColor.GOLD, TextDecoration.BOLD));
+            List<Component> lore = mortarLore(path, tier, null);
+            lore.add(Component.empty());
+            lore.add(Component.text("Cost: ", NamedTextColor.GRAY)
+                    .append(Component.text(cost + " gold ingots", NamedTextColor.GOLD, TextDecoration.BOLD)));
+            lore.add(Component.text("Click to purchase", NamedTextColor.GREEN, TextDecoration.BOLD));
+            meta.lore(lore);
+            meta.setEnchantmentGlintOverride(true);
+            meta.addItemFlags(ItemFlag.HIDE_ATTRIBUTES);
+            gold.setItemMeta(meta);
+            return gold;
+        }
+        return pane(Material.GRAY_STAINED_GLASS_PANE, "Tier locked",
+                List.of(Component.text("Unlock the previous tier first.", NamedTextColor.DARK_GRAY)));
+    }
+
+    private ItemStack iconRocket(ItemStack weapon, RocketUpgradeState current, RocketUpgradePath path, int tier) {
+        boolean lockedPath = RocketUpgradeEffects.pathLocked(current, path);
+        boolean owned = RocketUpgradeEffects.tierOwned(current, path, tier);
+        boolean canBuy = RocketUpgradeEffects.canBuyTier(current, path, tier);
+        int cost = RocketUpgradeEffects.goldCostForTier(tier);
+
+        if (lockedPath) {
+            return pane(Material.RED_STAINED_GLASS_PANE, "Path locked",
+                    List.of(
+                            Component.text("Another rocket path is already taken.", NamedTextColor.DARK_RED),
+                            Component.text("Switch weapon to reset.", NamedTextColor.GRAY, TextDecoration.ITALIC)
+                    ));
+        }
+        if (owned) {
+            ItemStack ok = new ItemStack(Material.EMERALD);
+            ItemMeta m = ok.getItemMeta();
+            m.displayName(Component.text(RocketUpgradeEffects.tierTitle(path, tier), NamedTextColor.GREEN, TextDecoration.BOLD));
+            m.lore(rocketLore(path, tier, loreOwnedBadge()));
+            m.addItemFlags(ItemFlag.HIDE_ATTRIBUTES);
+            ok.setItemMeta(m);
+            return ok;
+        }
+        if (canBuy) {
+            ItemStack gold = new ItemStack(Material.GOLD_INGOT);
+            ItemMeta meta = gold.getItemMeta();
+            meta.displayName(Component.text(RocketUpgradeEffects.tierTitle(path, tier), NamedTextColor.GOLD, TextDecoration.BOLD));
+            List<Component> lore = rocketLore(path, tier, null);
+            lore.add(Component.empty());
+            lore.add(Component.text("Cost: ", NamedTextColor.GRAY)
+                    .append(Component.text(cost + " gold ingots", NamedTextColor.GOLD, TextDecoration.BOLD)));
+            lore.add(Component.text("Click to purchase", NamedTextColor.GREEN, TextDecoration.BOLD));
+            meta.lore(lore);
+            meta.setEnchantmentGlintOverride(true);
+            meta.addItemFlags(ItemFlag.HIDE_ATTRIBUTES);
+            gold.setItemMeta(meta);
+            return gold;
+        }
+        return pane(Material.GRAY_STAINED_GLASS_PANE, "Tier locked",
+                List.of(Component.text("Unlock the previous tier first.", NamedTextColor.DARK_GRAY)));
+    }
+
+    private static List<Component> rocketLore(RocketUpgradePath path, int tier, Component extra) {
+        List<String> lines = RocketUpgradeEffects.tierLines(path, tier);
+        List<Component> out = new java.util.ArrayList<>();
+        for (String s : lines) {
+            out.add(Component.text(s, NamedTextColor.GRAY));
+        }
+        if (extra != null) {
+            out.add(extra);
+        }
+        return out;
+    }
+
+    private ItemStack iconRevolver(ItemStack weapon, RevolverUpgradeState current, int tier) {
+        boolean owned = RevolverUpgradeEffects.tierOwned(current, tier);
+        boolean canBuy = RevolverUpgradeEffects.canBuyTier(current, tier);
+        int cost = RevolverUpgradeEffects.goldCostForTier(tier);
+
+        if (owned) {
+            ItemStack ok = new ItemStack(Material.EMERALD);
+            ItemMeta m = ok.getItemMeta();
+            m.displayName(Component.text(RevolverUpgradeEffects.tierTitle(tier, GameLocale.EN), NamedTextColor.GREEN, TextDecoration.BOLD));
+            m.lore(revolverTierLore(tier, loreOwnedBadge()));
+            m.addItemFlags(ItemFlag.HIDE_ATTRIBUTES);
+            ok.setItemMeta(m);
+            return ok;
+        }
+        if (canBuy) {
+            ItemStack gold = new ItemStack(Material.GOLD_INGOT);
+            ItemMeta meta = gold.getItemMeta();
+            meta.displayName(Component.text(RevolverUpgradeEffects.tierTitle(tier, GameLocale.EN), NamedTextColor.GOLD, TextDecoration.BOLD));
+            List<Component> lore = revolverTierLore(tier, null);
+            lore.add(Component.empty());
+            lore.add(Component.text("Cost: ", NamedTextColor.GRAY)
+                    .append(Component.text(cost + " gold ingots", NamedTextColor.GOLD, TextDecoration.BOLD)));
+            lore.add(Component.text("Click to purchase", NamedTextColor.GREEN, TextDecoration.BOLD));
+            meta.lore(lore);
+            meta.setEnchantmentGlintOverride(true);
+            meta.addItemFlags(ItemFlag.HIDE_ATTRIBUTES);
+            gold.setItemMeta(meta);
+            return gold;
+        }
+        return pane(Material.GRAY_STAINED_GLASS_PANE, "Tier locked",
+                List.of(Component.text("Unlock the previous tier first.", NamedTextColor.DARK_GRAY)));
+    }
+
+    private static List<Component> revolverTierLore(int tier, Component extra) {
+        List<String> lines = RevolverUpgradeEffects.tierLines(tier);
+        List<Component> out = new java.util.ArrayList<>();
+        for (String s : lines) {
+            out.add(Component.text(s, NamedTextColor.GRAY));
+        }
+        if (extra != null) {
+            out.add(extra);
+        }
+        return out;
+    }
+
+    private static List<Component> mortarLore(MortarUpgradePath path, int tier, Component extra) {
+        List<String> lines = MortarUpgradeEffects.tierLines(path, tier);
+        List<Component> out = new java.util.ArrayList<>();
+        for (String s : lines) {
+            out.add(Component.text(s, NamedTextColor.GRAY));
+        }
+        if (extra != null) {
+            out.add(extra);
+        }
+        return out;
     }
 
     private ItemStack iconBomb(ItemStack weapon, BombUpgradeState current, BombUpgradePath path, int tier) {
@@ -437,10 +760,10 @@ public class ModificationTableListener implements Listener {
         int cost = BombUpgradeEffects.goldCostForTier(tier);
 
         if (lockedPath) {
-            return pane(Material.RED_STAINED_GLASS_PANE, "Voie verrouillée",
+            return pane(Material.RED_STAINED_GLASS_PANE, "Path locked",
                     List.of(
-                            Component.text("✕ Une autre voie bombe est prise.", NamedTextColor.DARK_RED),
-                            Component.text("Change d'arme pour repartir de zéro.", NamedTextColor.GRAY, TextDecoration.ITALIC)
+                            Component.text("✕ Another bomb path is already taken.", NamedTextColor.DARK_RED),
+                            Component.text("Switch weapon to reset.", NamedTextColor.GRAY, TextDecoration.ITALIC)
                     ));
         }
         if (owned) {
@@ -458,17 +781,17 @@ public class ModificationTableListener implements Listener {
             meta.displayName(Component.text(BombUpgradeEffects.tierTitle(path, tier), NamedTextColor.GOLD, TextDecoration.BOLD));
             List<Component> lore = bombLore(path, tier, null);
             lore.add(Component.empty());
-            lore.add(Component.text("Coût : ", NamedTextColor.GRAY)
-                    .append(Component.text(cost + " lingots d'or", NamedTextColor.GOLD, TextDecoration.BOLD)));
-            lore.add(Component.text("▶ Clic pour valider l'achat", NamedTextColor.GREEN, TextDecoration.BOLD));
+            lore.add(Component.text("Cost: ", NamedTextColor.GRAY)
+                    .append(Component.text(cost + " gold ingots", NamedTextColor.GOLD, TextDecoration.BOLD)));
+            lore.add(Component.text("Click to purchase", NamedTextColor.GREEN, TextDecoration.BOLD));
             meta.lore(lore);
             meta.setEnchantmentGlintOverride(true);
             meta.addItemFlags(ItemFlag.HIDE_ATTRIBUTES);
             gold.setItemMeta(meta);
             return gold;
         }
-        return pane(Material.GRAY_STAINED_GLASS_PANE, "Palier verrouillé",
-                List.of(Component.text("Débloque le palier précédent d'abord.", NamedTextColor.DARK_GRAY)));
+        return pane(Material.GRAY_STAINED_GLASS_PANE, "Tier locked",
+                List.of(Component.text("Unlock the previous tier first.", NamedTextColor.DARK_GRAY)));
     }
 
     private static List<Component> bombLore(BombUpgradePath path, int tier, Component extra) {
@@ -490,10 +813,10 @@ public class ModificationTableListener implements Listener {
         int cost = JerrycanUpgradeEffects.goldCostForTier(tier);
 
         if (lockedPath) {
-            return pane(Material.RED_STAINED_GLASS_PANE, "Voie verrouillée",
+            return pane(Material.RED_STAINED_GLASS_PANE, "Path locked",
                     List.of(
-                            Component.text("✕ Une autre voie J-20 est prise.", NamedTextColor.DARK_RED),
-                            Component.text("Change de jerrican pour repartir de zéro.", NamedTextColor.GRAY, TextDecoration.ITALIC)
+                            Component.text("✕ Another J-20 path is already taken.", NamedTextColor.DARK_RED),
+                            Component.text("Switch jerrycan to reset.", NamedTextColor.GRAY, TextDecoration.ITALIC)
                     ));
         }
         if (owned) {
@@ -511,17 +834,17 @@ public class ModificationTableListener implements Listener {
             meta.displayName(Component.text(JerrycanUpgradeEffects.tierTitle(path, tier), NamedTextColor.GOLD, TextDecoration.BOLD));
             List<Component> lore = jerryLore(path, tier, null);
             lore.add(Component.empty());
-            lore.add(Component.text("Coût : ", NamedTextColor.GRAY)
-                    .append(Component.text(cost + " lingots d'or", NamedTextColor.GOLD, TextDecoration.BOLD)));
-            lore.add(Component.text("▶ Clic pour valider l'achat", NamedTextColor.GREEN, TextDecoration.BOLD));
+            lore.add(Component.text("Cost: ", NamedTextColor.GRAY)
+                    .append(Component.text(cost + " gold ingots", NamedTextColor.GOLD, TextDecoration.BOLD)));
+            lore.add(Component.text("Click to purchase", NamedTextColor.GREEN, TextDecoration.BOLD));
             meta.lore(lore);
             meta.setEnchantmentGlintOverride(true);
             meta.addItemFlags(ItemFlag.HIDE_ATTRIBUTES);
             gold.setItemMeta(meta);
             return gold;
         }
-        return pane(Material.GRAY_STAINED_GLASS_PANE, "Palier verrouillé",
-                List.of(Component.text("Débloque le palier précédent d'abord.", NamedTextColor.DARK_GRAY)));
+        return pane(Material.GRAY_STAINED_GLASS_PANE, "Tier locked",
+                List.of(Component.text("Unlock the previous tier first.", NamedTextColor.DARK_GRAY)));
     }
 
     private static List<Component> jerryLore(JerrycanUpgradePath path, int tier, Component extra) {
@@ -543,10 +866,10 @@ public class ModificationTableListener implements Listener {
         int cost = WeaponUpgradeEffects.goldCostForTier(tier);
 
         if (lockedPath) {
-            return pane(Material.RED_STAINED_GLASS_PANE, "Voie verrouillée",
+            return pane(Material.RED_STAINED_GLASS_PANE, "Path locked",
                     List.of(
-                            Component.text("✕ Une autre voie est engagée.", NamedTextColor.DARK_RED),
-                            Component.text("Change d'arme pour repartir de zéro.", NamedTextColor.GRAY, TextDecoration.ITALIC)
+                            Component.text("✕ Another path is already in use.", NamedTextColor.DARK_RED),
+                            Component.text("Switch weapon to reset.", NamedTextColor.GRAY, TextDecoration.ITALIC)
                     ));
         }
         if (owned) {
@@ -564,21 +887,21 @@ public class ModificationTableListener implements Listener {
             meta.displayName(Component.text(WeaponUpgradeEffects.tierTitle(path, tier), NamedTextColor.GOLD, TextDecoration.BOLD));
             List<Component> lore = loreTier(path, tier, null);
             lore.add(Component.empty());
-            lore.add(Component.text("Coût : ", NamedTextColor.GRAY)
-                    .append(Component.text(cost + " lingots d'or", NamedTextColor.GOLD, TextDecoration.BOLD)));
-            lore.add(Component.text("▶ Clic pour valider l'achat", NamedTextColor.GREEN, TextDecoration.BOLD));
+            lore.add(Component.text("Cost: ", NamedTextColor.GRAY)
+                    .append(Component.text(cost + " gold ingots", NamedTextColor.GOLD, TextDecoration.BOLD)));
+            lore.add(Component.text("Click to purchase", NamedTextColor.GREEN, TextDecoration.BOLD));
             meta.lore(lore);
             meta.setEnchantmentGlintOverride(true);
             meta.addItemFlags(ItemFlag.HIDE_ATTRIBUTES);
             gold.setItemMeta(meta);
             return gold;
         }
-        return pane(Material.GRAY_STAINED_GLASS_PANE, "Palier verrouillé",
-                List.of(Component.text("Débloque le palier précédent d'abord.", NamedTextColor.DARK_GRAY)));
+        return pane(Material.GRAY_STAINED_GLASS_PANE, "Tier locked",
+                List.of(Component.text("Unlock the previous tier first.", NamedTextColor.DARK_GRAY)));
     }
 
     private static Component loreOwnedBadge() {
-        return Component.text("✓ Amélioration installée", NamedTextColor.GREEN, TextDecoration.BOLD);
+        return Component.text("✓ Upgrade installed", NamedTextColor.GREEN, TextDecoration.BOLD);
     }
 
     private static List<Component> loreTier(WeaponUpgradePath path, int tier, Component extra) {
@@ -669,12 +992,24 @@ public class ModificationTableListener implements Listener {
     private void tryPurchase(Player player, Inventory top, int rawSlot) {
         ItemStack weapon = top.getItem(SLOT_WEAPON);
         if (weapon == null || weaponManager.readWeaponId(weapon) == null) {
-            player.sendMessage(Component.text("Place l'arme dans la fente centrale.", NamedTextColor.RED));
+            player.sendMessage(Component.text("Place the weapon in the center slot.", NamedTextColor.RED));
             return;
         }
         WeaponProfile wp = WeaponProfile.fromId(weaponManager.readWeaponId(weapon));
         if (wp != null && wp.isBombWeapon()) {
             tryBombPurchase(player, top, rawSlot, weapon);
+            return;
+        }
+        if (wp != null && wp.isMortarWeapon()) {
+            tryMortarPurchase(player, top, rawSlot, weapon);
+            return;
+        }
+        if (wp != null && wp.isRocketWeapon()) {
+            tryRocketPurchase(player, top, rawSlot, weapon);
+            return;
+        }
+        if (wp != null && wp.isRevolverWorkshopWeapon()) {
+            tryRevolverPurchase(player, top, rawSlot, weapon);
             return;
         }
         if (wp == WeaponProfile.JERRYCAN) {
@@ -705,7 +1040,7 @@ public class ModificationTableListener implements Listener {
         }
         int cost = WeaponUpgradeEffects.goldCostForTier(tier);
         if (countGoldIngots(player) < cost) {
-            player.sendMessage(Component.text("Il te faut " + cost + " lingots d'or.", NamedTextColor.RED));
+            player.sendMessage(Component.text("You need " + cost + " gold ingots.", NamedTextColor.RED));
             ModificationTableFx.playCannotAfford(player);
             return;
         }
@@ -721,7 +1056,7 @@ public class ModificationTableListener implements Listener {
         weaponManager.refreshWeaponMeta(weapon, player);
         refreshPathButtons(top, weapon);
         ModificationTableFx.playWeaponUpgradeSuccess(player, path);
-        player.sendMessage(Component.text("Palier " + tier + " (" + path.styleName() + ") installe !", NamedTextColor.GREEN));
+        player.sendMessage(Component.text("Tier " + tier + " (" + path.styleName() + ") installed!", NamedTextColor.GREEN));
     }
 
     private void tryBombPurchase(Player player, Inventory top, int rawSlot, ItemStack weapon) {
@@ -749,7 +1084,7 @@ public class ModificationTableListener implements Listener {
         }
         int cost = BombUpgradeEffects.goldCostForTier(tier);
         if (countGoldIngots(player) < cost) {
-            player.sendMessage(Component.text("Il te faut " + cost + " lingots d'or.", NamedTextColor.RED));
+            player.sendMessage(Component.text("You need " + cost + " gold ingots.", NamedTextColor.RED));
             ModificationTableFx.playCannotAfford(player);
             return;
         }
@@ -761,7 +1096,126 @@ public class ModificationTableListener implements Listener {
         weaponManager.refreshWeaponMeta(weapon);
         refreshPathButtons(top, weapon);
         ModificationTableFx.playBombUpgradeSuccess(player, path);
-        player.sendMessage(Component.text("Palier bombe " + tier + " (" + path.styleName() + ") !", NamedTextColor.GREEN));
+        player.sendMessage(Component.text("Bomb tier " + tier + " (" + path.styleName() + ")!", NamedTextColor.GREEN));
+    }
+
+    private void tryMortarPurchase(Player player, Inventory top, int rawSlot, ItemStack weapon) {
+        MortarUpgradePath path = null;
+        int tier = -1;
+        for (MortarUpgradePath p : MortarUpgradePath.values()) {
+            for (int t = 1; t <= 5; t++) {
+                if (slotForMortar(p, t) == rawSlot) {
+                    path = p;
+                    tier = t;
+                    break;
+                }
+            }
+            if (path != null) {
+                break;
+            }
+        }
+        if (path == null || tier < 1) {
+            return;
+        }
+        MortarUpgradeState current = MortarUpgradeState.read(weapon, plugin);
+        if (!MortarUpgradeEffects.canBuyTier(current, path, tier)) {
+            ModificationTableFx.playTierLocked(player);
+            return;
+        }
+        int cost = MortarUpgradeEffects.goldCostForTier(tier);
+        if (countGoldIngots(player) < cost) {
+            player.sendMessage(Component.text("You need " + cost + " gold ingots.", NamedTextColor.RED));
+            ModificationTableFx.playCannotAfford(player);
+            return;
+        }
+        if (!removeGoldIngots(player, cost)) {
+            return;
+        }
+        MortarUpgradeState next = new MortarUpgradeState(path, tier);
+        MortarUpgradeState.write(weapon, next, plugin);
+        weaponManager.refreshWeaponMeta(weapon, player);
+        refreshPathButtons(top, weapon);
+        ModificationTableFx.playMortarUpgradeSuccess(player, path);
+        player.sendMessage(Component.text("Mortar tier " + tier + " (" + path.styleName() + ")!", NamedTextColor.GREEN));
+    }
+
+    private void tryRocketPurchase(Player player, Inventory top, int rawSlot, ItemStack weapon) {
+        RocketUpgradePath path = null;
+        int tier = -1;
+        for (RocketUpgradePath p : RocketUpgradePath.values()) {
+            for (int t = 1; t <= 5; t++) {
+                if (slotForRocket(p, t) == rawSlot) {
+                    path = p;
+                    tier = t;
+                    break;
+                }
+            }
+            if (path != null) {
+                break;
+            }
+        }
+        if (path == null || tier < 1) {
+            return;
+        }
+        RocketUpgradeState current = RocketUpgradeState.read(weapon, plugin);
+        if (!RocketUpgradeEffects.canBuyTier(current, path, tier)) {
+            ModificationTableFx.playTierLocked(player);
+            return;
+        }
+        int cost = RocketUpgradeEffects.goldCostForTier(tier);
+        if (countGoldIngots(player) < cost) {
+            player.sendMessage(Component.text("You need " + cost + " gold ingots.", NamedTextColor.RED));
+            ModificationTableFx.playCannotAfford(player);
+            return;
+        }
+        if (!removeGoldIngots(player, cost)) {
+            return;
+        }
+        RocketUpgradeState next = new RocketUpgradeState(path, tier);
+        RocketUpgradeState.write(weapon, next, plugin);
+        weaponManager.refreshWeaponMeta(weapon, player);
+        refreshPathButtons(top, weapon);
+        ModificationTableFx.playRocketUpgradeSuccess(player, path);
+        player.sendMessage(Component.text("Rocket launcher tier " + tier + " (" + path.styleName() + ")!", NamedTextColor.GREEN));
+    }
+
+    private void tryRevolverPurchase(Player player, Inventory top, int rawSlot, ItemStack weapon) {
+        int tier = -1;
+        for (int t = 1; t <= 3; t++) {
+            if (slotForRevolverTier(t) == rawSlot) {
+                tier = t;
+                break;
+            }
+        }
+        if (tier < 1) {
+            return;
+        }
+        RevolverUpgradeState current = RevolverUpgradeState.read(weapon, plugin);
+        if (!RevolverUpgradeEffects.canBuyTier(current, tier)) {
+            ModificationTableFx.playTierLocked(player);
+            return;
+        }
+        int cost = RevolverUpgradeEffects.goldCostForTier(tier);
+        if (countGoldIngots(player) < cost) {
+            player.sendMessage(Component.text("You need " + cost + " gold ingots.", NamedTextColor.RED));
+            ModificationTableFx.playCannotAfford(player);
+            return;
+        }
+        if (!removeGoldIngots(player, cost)) {
+            return;
+        }
+        RevolverUpgradeState next = new RevolverUpgradeState(tier);
+        if (tier == 1) {
+            WeaponUpgradeState.write(weapon, WeaponUpgradeState.NONE, plugin);
+        }
+        RevolverUpgradeState.write(weapon, next, plugin);
+        if (tier == 1) {
+            weaponManager.bumpRevolverClipAfterUpgrade(player, weapon);
+        }
+        weaponManager.refreshWeaponMeta(weapon, player);
+        refreshPathButtons(top, weapon);
+        ModificationTableFx.playRevolverUpgradeSuccess(player, tier);
+        player.sendMessage(Component.text("Revolver tier " + tier + " (" + RevolverUpgradeEffects.tierTitle(tier, GameLocale.EN) + ")!", NamedTextColor.GREEN));
     }
 
     private void tryJerryPurchase(Player player, Inventory top, int rawSlot, ItemStack weapon) {
@@ -789,7 +1243,7 @@ public class ModificationTableListener implements Listener {
         }
         int cost = JerrycanUpgradeEffects.goldCostForTier(tier);
         if (countGoldIngots(player) < cost) {
-            player.sendMessage(Component.text("Il te faut " + cost + " lingots d'or.", NamedTextColor.RED));
+            player.sendMessage(Component.text("You need " + cost + " gold ingots.", NamedTextColor.RED));
             ModificationTableFx.playCannotAfford(player);
             return;
         }
@@ -804,7 +1258,7 @@ public class ModificationTableListener implements Listener {
         weaponManager.refreshWeaponMeta(weapon, player);
         refreshPathButtons(top, weapon);
         ModificationTableFx.playJerrycanUpgradeSuccess(player, path);
-        player.sendMessage(Component.text("J-20 palier " + tier + " (" + path.styleName() + ") !", NamedTextColor.GREEN));
+        player.sendMessage(Component.text("J-20 tier " + tier + " (" + path.styleName() + ")!", NamedTextColor.GREEN));
     }
 
     private static int countGoldIngots(Player player) {

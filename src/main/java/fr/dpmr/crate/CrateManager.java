@@ -2,7 +2,6 @@ package fr.dpmr.crate;
 
 import fr.dpmr.data.PointsManager;
 import fr.dpmr.game.BandageManager;
-import fr.dpmr.game.DpmrConsumable;
 import fr.dpmr.game.WeaponManager;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
@@ -29,7 +28,6 @@ import java.io.File;
 import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.ThreadLocalRandom;
-import java.util.function.Supplier;
 
 public class CrateManager implements Listener {
 
@@ -44,13 +42,6 @@ public class CrateManager implements Listener {
     private final Set<UUID> opening = new HashSet<>();
 
     private record CrateDef(String id, String world, int x, int y, int z) {}
-
-    private interface Reward {
-        ItemStack preview();
-        void give(Player player);
-        String label();
-        int weight();
-    }
 
     public CrateManager(JavaPlugin plugin, PointsManager pointsManager, WeaponManager weaponManager, BandageManager bandageManager) {
         this.plugin = plugin;
@@ -109,7 +100,7 @@ public class CrateManager implements Listener {
     public void deleteCrate(Player admin, String id) {
         String k = id.toLowerCase(Locale.ROOT);
         if (crates.remove(k) == null) {
-            admin.sendMessage(Component.text("Caisse introuvable.", NamedTextColor.RED));
+            admin.sendMessage(Component.text("Crate not found.", NamedTextColor.RED));
             return;
         }
         save();
@@ -123,8 +114,8 @@ public class CrateManager implements Listener {
     public ItemStack createKey(String crateId, int amount) {
         ItemStack key = new ItemStack(Material.TRIPWIRE_HOOK, Math.max(1, amount));
         ItemMeta meta = key.getItemMeta();
-        meta.displayName(Component.text("Cle de caisse: " + crateId, NamedTextColor.GOLD));
-        meta.lore(List.of(Component.text("Utilise sur la caisse " + crateId, NamedTextColor.GRAY)));
+        meta.displayName(Component.text("Crate key: " + crateId, NamedTextColor.GOLD));
+        meta.lore(List.of(Component.text("Use on crate " + crateId, NamedTextColor.GRAY)));
         meta.getPersistentDataContainer().set(keyCrateKeyType, PersistentDataType.STRING, crateId.toLowerCase(Locale.ROOT));
         key.setItemMeta(meta);
         return key;
@@ -155,7 +146,7 @@ public class CrateManager implements Listener {
         }
         String keyType = readKeyType(event.getItem());
         if (keyType == null || !keyType.equals(def.id)) {
-            player.sendActionBar(Component.text("Il faut une cle '" + def.id + "'", NamedTextColor.RED));
+            player.sendActionBar(Component.text("You need a '" + def.id + "' key", NamedTextColor.RED));
             return;
         }
         event.setCancelled(true);
@@ -182,7 +173,7 @@ public class CrateManager implements Listener {
 
     private void openAnimation(Player player, CrateDef def, Location center) {
         opening.add(player.getUniqueId());
-        List<Reward> pool = rewardPool(def.id);
+        List<CrateRewards.LootReward> pool = CrateRewards.poolForCrateId(def.id, pointsManager, bandageManager, weaponManager);
         if (pool.isEmpty()) {
             opening.remove(player.getUniqueId());
             return;
@@ -206,14 +197,14 @@ public class CrateManager implements Listener {
         }
 
         final int[] tick = {0};
-        final Reward[] result = {randomWeighted(pool)};
+        final CrateRewards.LootReward[] result = {randomWeighted(pool)};
         final BukkitTask[] taskRef = new BukkitTask[1];
         taskRef[0] = Bukkit.getScheduler().runTaskTimer(plugin, () -> {
             tick[0]++;
             int speed = tick[0] < 25 ? 1 : (tick[0] < 45 ? 2 : 4);
             if (tick[0] % speed == 0) {
                 for (int i = 0; i < reels.size(); i++) {
-                    Reward rr = randomReward(pool);
+                    CrateRewards.LootReward rr = randomReward(pool);
                     if (i == 2 && tick[0] > 48) {
                         rr = result[0];
                     }
@@ -235,11 +226,11 @@ public class CrateManager implements Listener {
         }, 0L, 2L);
     }
 
-    private Reward randomWeighted(List<Reward> pool) {
-        int total = pool.stream().mapToInt(Reward::weight).sum();
+    private CrateRewards.LootReward randomWeighted(List<CrateRewards.LootReward> pool) {
+        int total = pool.stream().mapToInt(CrateRewards.LootReward::weight).sum();
         int r = ThreadLocalRandom.current().nextInt(Math.max(1, total));
         int acc = 0;
-        for (Reward reward : pool) {
+        for (CrateRewards.LootReward reward : pool) {
             acc += reward.weight();
             if (r < acc) {
                 return reward;
@@ -248,101 +239,9 @@ public class CrateManager implements Listener {
         return pool.get(0);
     }
 
-    private Reward randomReward(List<Reward> pool) {
+    private CrateRewards.LootReward randomReward(List<CrateRewards.LootReward> pool) {
         return pool.get(ThreadLocalRandom.current().nextInt(pool.size()));
     }
 
-    private List<Reward> rewardPool(String crateId) {
-        List<Reward> rewards = new ArrayList<>();
-        rewards.add(itemReward("Bandages (moyen) x6", () -> bandageManager.createBandage(6), 14));
-        rewards.add(itemReward("Bandages (grand) x4", () -> bandageManager.createConsumable(DpmrConsumable.BANDAGE_LARGE, 4), 10));
-        rewards.add(itemReward("Medikit x2", () -> bandageManager.createConsumable(DpmrConsumable.MEDIKIT, 2), 8));
-        rewards.add(itemReward("Potion de bouclier (grande) x2", () -> bandageManager.createConsumable(DpmrConsumable.SHIELD_POTION_LARGE, 2), 6));
-        rewards.add(pointsReward(20, 16));
-        rewards.add(pointsReward(50, 10));
-        rewards.add(weaponReward("CARABINE_MK18", 7));
-        rewards.add(weaponReward("AK47", 7));
-        rewards.add(weaponReward("PULSE", 6));
-        rewards.add(weaponReward("FUSIL_POMPE_RL", 6));
-        rewards.add(weaponReward("DRAGUNOV_SVD", 4));
-        if (crateId.equalsIgnoreCase("legend") || crateId.equalsIgnoreCase("legendaire")) {
-            rewards.add(weaponReward("AWP", 3));
-            rewards.add(weaponReward("DIVISER_POUR_MIEUX_REGNER", 1));
-            rewards.add(pointsReward(180, 3));
-        }
-        return rewards;
-    }
-
-    private Reward itemReward(String label, Supplier<ItemStack> supplier, int weight) {
-        return new Reward() {
-            @Override
-            public ItemStack preview() {
-                return supplier.get().clone();
-            }
-            @Override
-            public void give(Player player) {
-                player.getInventory().addItem(supplier.get());
-            }
-            @Override
-            public String label() {
-                return label;
-            }
-            @Override
-            public int weight() {
-                return weight;
-            }
-        };
-    }
-
-    private Reward pointsReward(int amount, int weight) {
-        return new Reward() {
-            @Override
-            public ItemStack preview() {
-                ItemStack it = new ItemStack(Material.SUNFLOWER);
-                ItemMeta meta = it.getItemMeta();
-                meta.displayName(Component.text("Points +" + amount, NamedTextColor.YELLOW));
-                it.setItemMeta(meta);
-                return it;
-            }
-            @Override
-            public void give(Player player) {
-                pointsManager.addPoints(player.getUniqueId(), amount);
-                pointsManager.save();
-            }
-            @Override
-            public String label() {
-                return amount + " points";
-            }
-            @Override
-            public int weight() {
-                return weight;
-            }
-        };
-    }
-
-    private Reward weaponReward(String weaponId, int weight) {
-        return new Reward() {
-            @Override
-            public ItemStack preview() {
-                ItemStack w = weaponManager.createWeaponItem(weaponId);
-                return w != null ? w : new ItemStack(Material.BARRIER);
-            }
-            @Override
-            public void give(Player player) {
-                ItemStack w = weaponManager.createWeaponItem(weaponId);
-                if (w != null) {
-                    player.getInventory().addItem(w);
-                }
-            }
-            @Override
-            public String label() {
-                return weaponId;
-            }
-            @Override
-            public int weight() {
-                return weight;
-            }
-        };
-    }
 }
 

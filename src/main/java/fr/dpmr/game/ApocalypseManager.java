@@ -231,10 +231,10 @@ public class ApocalypseManager implements Listener {
             return;
         }
         int pointsPerKill = Math.max(1, plugin.getConfig().getInt("points.per-player-kill", 10));
-        pointsManager.addPoints(killer.getUniqueId(), pointsPerKill);
+        int gained = pointsManager.addKillRewardPoints(killer.getUniqueId(), pointsPerKill);
         pointsManager.addKill(killer.getUniqueId());
-        pointsManager.save();
-        killer.sendMessage(Component.text("+" + pointsPerKill + " points (elimination de " + victim.getName() + ")", NamedTextColor.GOLD));
+        pointsManager.saveAsync();
+        killer.sendMessage(Component.text("+" + gained + " points (elimination de " + victim.getName() + ")", NamedTextColor.GOLD));
     }
 
     private Component buildDeathMessage(Player victim, Player killer, Entity killerEntity) {

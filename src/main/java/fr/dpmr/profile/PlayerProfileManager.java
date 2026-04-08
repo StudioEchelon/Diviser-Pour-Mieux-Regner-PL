@@ -93,7 +93,7 @@ public class PlayerProfileManager implements Listener {
         }
         pointsManager.addPoints(player.getUniqueId(), -cost);
         profile(player.getUniqueId()).put(type, lv + 1);
-        pointsManager.save();
+        pointsManager.saveAsync();
         save();
         applyAllPassives(player);
         return true;

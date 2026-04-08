@@ -8,9 +8,9 @@ import java.util.Locale;
  * Voies exclusives pour l'arme a bombes (table d'armement).
  */
 public enum BombUpgradePath {
-    SALVO("SALVE", "Salve", "Plus de bombes par tir"),
-    RICOCHET("REBOND", "Rebond", "La bombe rebondit sur les murs"),
-    OVERLOAD("FINAL", "Cataclysme", "Rayon et degats de l'explosion");
+    SALVO("SALVO", "Salvo", "More bombs per shot"),
+    RICOCHET("RICOCHET", "Ricochet", "Bomb bounces off walls"),
+    OVERLOAD("OVERLOAD", "Overload", "Explosion radius and damage");
 
     private final String shortLabel;
     private final String styleName;

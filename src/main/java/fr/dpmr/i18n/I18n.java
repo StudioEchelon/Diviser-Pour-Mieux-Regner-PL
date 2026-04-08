@@ -52,8 +52,8 @@ public final class I18n {
     }
 
     public static String string(GameLocale loc, String key, Object... args) {
-        YamlConfiguration y = loc == GameLocale.FR ? fr : en;
-        String pattern = y.getString(key);
+        YamlConfiguration primary = loc == GameLocale.FR ? fr : en;
+        String pattern = primary.getString(key);
         if (pattern == null || pattern.isEmpty()) {
             pattern = en.getString(key, key);
         }

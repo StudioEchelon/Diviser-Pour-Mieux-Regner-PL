@@ -10,12 +10,11 @@ softdepend:
 
 commands:
   dpmr:
-    description: "Control apocalypse mode and plugin configuration"
-    usage: "/dpmr <start|stop|status|...|givelaunchpad|launchpads|givegun|...>"
-    permission: dpmr.admin
+    description: "Control apocalypse mode and plugin configuration (/dpmr skin = skins, reste admin)"
+    usage: "/dpmr <start|stop|status|skin|...|givelaunchpad|launchpads|givegun|...>"
   points:
-    description: "View your points"
-    usage: "/points [player]"
+    description: "Points balance, leaderboard, admin give/set/take"
+    usage: "/points [player] | /points top [n] | /points topkills [n] | /points give|set|take <player> <n>"
   topdpmr:
     description: "Points leaderboard"
     usage: "/topdpmr"
@@ -25,6 +24,9 @@ commands:
   armes:
     description: "Weapon catalog by rarity"
     usage: "/armes"
+  gun:
+    description: "Arsenal — browse all weapons (admin: click to receive)"
+    usage: "/gun"
   boutique:
     description: "Buy weapons with points"
     usage: "/boutique"
@@ -32,8 +34,8 @@ commands:
     description: "Points ranking (alias of /topdpmr)"
     usage: "/leaderboard"
   hologramtop:
-    description: "Place or remove a top-10 hologram (admin)"
-    usage: "/hologramtop | /hologramtop remove"
+    description: "Place or remove top-10 hologram (points or kills)"
+    usage: "/hologramtop | /hologramtop kills | /hologramtop remove"
     permission: dpmr.admin
   cosmetics:
     description: "Cosmetics menu and purchases"
@@ -41,6 +43,7 @@ commands:
   skin:
     description: "Weapon skins shop (Thompson, etc.)"
     usage: "/skin | /skin thompson"
+    permission: dpmr.skin
   hdv:
     description: "Player market (weapons, items)"
     usage: "/hdv"
@@ -80,6 +83,9 @@ permissions:
   dpmr.admin:
     description: "Admin permission for DPMR mode"
     default: op
+  dpmr.skin:
+    description: "Open weapon skin GUI (/dpmr skin, /skin)"
+    default: true
   dpmr.killdpmrnpcs:
     description: "Remove all DPMR NPCs (spawners, war world, etc.)"
     default: op

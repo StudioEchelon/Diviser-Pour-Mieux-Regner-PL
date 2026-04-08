@@ -15,9 +15,12 @@ import org.bukkit.inventory.meta.ItemMeta;
 import java.util.List;
 
 /**
- * Icones tete joueur et style commun pour la boutique DPMR.
+ * Shop UI: rarity heads, tier-colored glass panes, shared backdrop.
  */
 public final class BoutiqueUi {
+
+    private static final TextColor SUBTLE = TextColor.color(0x9AA0A6);
+    private static final TextColor ACCENT_GOLD = TextColor.color(0xD4AF37);
 
     private BoutiqueUi() {
     }
@@ -34,16 +37,15 @@ public final class BoutiqueUi {
 
     public static Component titleHub() {
         return Component.text()
-                .append(Component.text("◆ ", TextColor.color(0xF5C26B)))
-                .append(Component.text("BOUTIQUE", TextColor.color(0xFFF5E6), TextDecoration.BOLD))
-                .append(Component.text(" DPMR", TextColor.color(0xB8B8C8)))
-                .append(Component.text(" ◆", TextColor.color(0xF5C26B)))
+                .append(Component.text("DPMR ", NamedTextColor.DARK_GRAY))
+                .append(Component.text("· ", TextColor.color(0x5A5A68)))
+                .append(Component.text("Weapon Shop", TextColor.color(0xF2F2F2), TextDecoration.BOLD))
                 .build();
     }
 
     public static Component titleBuyCategory(WeaponRarity rarity) {
         return Component.text()
-                .append(Component.text("Acheter ", NamedTextColor.DARK_GRAY))
+                .append(Component.text("Buy ", NamedTextColor.DARK_GRAY))
                 .append(Component.text("· ", TextColor.color(0x5A5A68)))
                 .append(Component.text(rarity.displayFr(), rarity.color(), TextDecoration.BOLD))
                 .build();
@@ -51,8 +53,9 @@ public final class BoutiqueUi {
 
     public static Component titleSell() {
         return Component.text()
-                .append(Component.text("Reprise ", TextColor.color(0xE8C170), TextDecoration.BOLD))
-                .append(Component.text("· armes", NamedTextColor.DARK_GRAY))
+                .append(Component.text("Sell ", TextColor.color(0xE8C170), TextDecoration.BOLD))
+                .append(Component.text("· ", TextColor.color(0x5A5A68)))
+                .append(Component.text("Trade-in", NamedTextColor.DARK_GRAY))
                 .build();
     }
 
@@ -69,17 +72,46 @@ public final class BoutiqueUi {
         return NpcSkins.playerHeadFromTextureHash(hash, "dpmr-boutique-rarity-" + rarity.name());
     }
 
+    /** Stained glass pane matching shop tier colour (e.g. lime for Common). */
+    public static Material rarityTierPaneMaterial(WeaponRarity rarity) {
+        return switch (rarity) {
+            case COMMON -> Material.LIME_STAINED_GLASS_PANE;
+            case UNCOMMON -> Material.GREEN_STAINED_GLASS_PANE;
+            case RARE -> Material.LIGHT_BLUE_STAINED_GLASS_PANE;
+            case EPIC -> Material.MAGENTA_STAINED_GLASS_PANE;
+            case LEGENDARY -> Material.YELLOW_STAINED_GLASS_PANE;
+            case MYTHIC -> Material.PINK_STAINED_GLASS_PANE;
+            case GHOST -> Material.PURPLE_STAINED_GLASS_PANE;
+        };
+    }
+
     public static ItemStack hubRarityButton(WeaponRarity rarity, int weaponCount) {
         ItemStack sk = rarityPortrait(rarity);
         ItemMeta m = sk.getItemMeta();
         m.displayName(Component.text(rarity.displayFr(), rarity.color(), TextDecoration.BOLD));
+        String w = weaponCount == 1 ? "weapon" : "weapons";
         m.lore(List.of(
-                Component.text(weaponCount + " arme" + (weaponCount > 1 ? "s" : ""), NamedTextColor.GRAY),
+                Component.text(weaponCount + " " + w + " in this tier", NamedTextColor.GRAY),
                 Component.empty(),
-                Component.text("Cliquer pour parcourir", TextColor.color(0x8A8A98))
+                Component.text("Click to browse", SUBTLE)
         ));
         sk.setItemMeta(m);
         return sk;
+    }
+
+    /** Tier-coloured pane under the portrait; same navigation as the head. */
+    public static ItemStack hubRarityTierPane(WeaponRarity rarity, int weaponCount) {
+        ItemStack p = new ItemStack(rarityTierPaneMaterial(rarity));
+        ItemMeta m = p.getItemMeta();
+        m.displayName(Component.text(rarity.displayFr(), rarity.color(), TextDecoration.BOLD));
+        String w = weaponCount == 1 ? "weapon" : "weapons";
+        m.lore(List.of(
+                Component.text(weaponCount + " " + w, NamedTextColor.GRAY),
+                Component.empty(),
+                Component.text("Click to browse", SUBTLE)
+        ));
+        p.setItemMeta(m);
+        return p;
     }
 
     public static ItemStack pane(Material material) {
@@ -110,13 +142,13 @@ public final class BoutiqueUi {
     public static ItemStack categoryShowcase(WeaponRarity rarity, int weaponCount) {
         ItemStack sk = rarityPortrait(rarity);
         ItemMeta m = sk.getItemMeta();
-        m.displayName(Component.text("Rayon ", NamedTextColor.DARK_GRAY)
+        m.displayName(Component.text("Tier ", NamedTextColor.DARK_GRAY)
                 .append(Component.text(rarity.displayFr(), rarity.color(), TextDecoration.BOLD)));
+        String mdl = weaponCount == 1 ? "model" : "models";
         m.lore(List.of(
-                Component.text(weaponCount + " modele" + (weaponCount > 1 ? "s" : "") + " disponible"
-                        + (weaponCount > 1 ? "s" : ""), NamedTextColor.GRAY),
+                Component.text(weaponCount + " " + mdl + " listed", NamedTextColor.GRAY),
                 Component.empty(),
-                Component.text("Paiement en points DPMR", TextColor.color(0xC9A86A))
+                Component.text("Prices in DPMR points", ACCENT_GOLD)
         ));
         sk.setItemMeta(m);
         return sk;

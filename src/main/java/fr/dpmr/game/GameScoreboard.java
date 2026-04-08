@@ -31,20 +31,27 @@ public class GameScoreboard {
     private final ClanManager clanManager;
     private final BooleanSupplier gameRunning;
     private final Supplier<String> objectiveSidebarLine;
+    private final Supplier<String> bountySidebarLine;
     private BukkitTask task;
     private int animFrame = 0;
 
     public GameScoreboard(JavaPlugin plugin, PointsManager pointsManager, ClanManager clanManager, BooleanSupplier gameRunning) {
-        this(plugin, pointsManager, clanManager, gameRunning, () -> "");
+        this(plugin, pointsManager, clanManager, gameRunning, () -> "", () -> "");
     }
 
     public GameScoreboard(JavaPlugin plugin, PointsManager pointsManager, ClanManager clanManager,
                           BooleanSupplier gameRunning, Supplier<String> objectiveSidebarLine) {
+        this(plugin, pointsManager, clanManager, gameRunning, objectiveSidebarLine, () -> "");
+    }
+
+    public GameScoreboard(JavaPlugin plugin, PointsManager pointsManager, ClanManager clanManager,
+                          BooleanSupplier gameRunning, Supplier<String> objectiveSidebarLine, Supplier<String> bountySidebarLine) {
         this.plugin = plugin;
         this.pointsManager = pointsManager;
         this.clanManager = clanManager;
         this.gameRunning = gameRunning;
         this.objectiveSidebarLine = objectiveSidebarLine;
+        this.bountySidebarLine = bountySidebarLine != null ? bountySidebarLine : () -> "";
     }
 
     public void start() {
@@ -96,6 +103,8 @@ public class GameScoreboard {
         int kills = pointsManager.getKills(player.getUniqueId());
         String objRaw = objectiveSidebarLine.get();
         String objLine = (objRaw == null || objRaw.isBlank()) ? "-" : shrink(objRaw, 16);
+        String bountyRaw = bountySidebarLine.get();
+        String bountyLine = (bountyRaw == null || bountyRaw.isBlank()) ? "" : shrink(bountyRaw, 18);
         String spinner = switch (animFrame % 4) {
             case 0 -> "◜";
             case 1 -> "◠";
@@ -110,11 +119,15 @@ public class GameScoreboard {
         List<Component> lineList = new ArrayList<>();
         lineList.add(Component.text("╺━━━━━━━━━━━━╸", NamedTextColor.DARK_GRAY));
         lineList.add(Component.text("Mode ", TextColor.fromHexString("#7B93A7"))
-                .append(Component.text(running ? "WAR" : "PAUSE", running ? NamedTextColor.GREEN : NamedTextColor.DARK_GRAY, TextDecoration.BOLD)));
+                .append(Component.text(running ? "WAR" : "IDLE", running ? NamedTextColor.GREEN : NamedTextColor.DARK_GRAY, TextDecoration.BOLD)));
         lineList.add(Component.text("Pts ", TextColor.fromHexString("#F6D365")).append(Component.text(pts, NamedTextColor.WHITE))
                 .append(Component.text("  K ", NamedTextColor.RED)).append(Component.text(kills, NamedTextColor.WHITE)));
         lineList.add(Component.text("Clan ", TextColor.fromHexString("#4A6A86")).append(Component.text(shrink(clan != null ? clan : "-", 10), NamedTextColor.WHITE)));
-        lineList.add(Component.text("Obj ", NamedTextColor.LIGHT_PURPLE).append(Component.text(objLine, TextColor.fromHexString("#B48EAD"))));
+        lineList.add(Component.text("Goal ", NamedTextColor.LIGHT_PURPLE).append(Component.text(objLine, TextColor.fromHexString("#B48EAD"))));
+        if (!bountyLine.isEmpty()) {
+            lineList.add(Component.text("Prime ", NamedTextColor.RED, TextDecoration.BOLD)
+                    .append(Component.text(bountyLine, NamedTextColor.GOLD)));
+        }
         lineList.add(Component.text("╺━━━━━━━━━━━━╸", NamedTextColor.DARK_GRAY));
         lineList.add(Component.text("/bout /hdv /cos", TextColor.fromHexString("#4A6A86")));
 
@@ -132,7 +145,7 @@ public class GameScoreboard {
             team.prefix(lines[i]);
             obj.getScore(ENTRIES[i]).setScore(score--);
         }
-        // Nettoyage des lignes en trop
+        // Clear unused score lines
         for (int i = n; i < ENTRIES.length; i++) {
             obj.getScore(ENTRIES[i]).resetScore();
         }
@@ -158,17 +171,22 @@ public class GameScoreboard {
             default -> "✧";
         };
 
-        player.sendPlayerListHeader(BrandingText.serverName()
-                .append(Component.text(" " + pulse + " ", NamedTextColor.GOLD))
-                .append(Component.text("Apocalypse", NamedTextColor.GRAY))
-                .append(Component.text(running ? " ON" : " OFF", running ? NamedTextColor.GREEN : NamedTextColor.DARK_GRAY)));
+        player.sendPlayerListHeader(
+                BrandingText.divideAndConquerTab()
+                        .append(Component.newline())
+                        .append(Component.text("───────────", NamedTextColor.DARK_GRAY))
+                        .append(Component.newline())
+                        .append(Component.text(pulse + " ", NamedTextColor.GOLD))
+                        .append(Component.text("Apocalypse", NamedTextColor.GRAY))
+                        .append(Component.text(running ? " ON" : " OFF", running ? NamedTextColor.GREEN : NamedTextColor.DARK_GRAY))
+        );
 
         player.sendPlayerListFooter(
                 Component.text("Points: ", NamedTextColor.YELLOW).append(Component.text(pts, NamedTextColor.WHITE))
                         .append(Component.text(" | Kills: ", NamedTextColor.GRAY)).append(Component.text(kills, NamedTextColor.WHITE))
                         .append(Component.text(" | Clan: ", NamedTextColor.AQUA)).append(Component.text(clan != null ? clan : "-", NamedTextColor.WHITE))
                         .append(Component.newline())
-                        .append(Component.text("Objectif: ", NamedTextColor.LIGHT_PURPLE)).append(Component.text(obj, NamedTextColor.LIGHT_PURPLE))
+                        .append(Component.text("Objective: ", NamedTextColor.LIGHT_PURPLE)).append(Component.text(obj, NamedTextColor.LIGHT_PURPLE))
                         .append(Component.text("  " + pulse, NamedTextColor.GOLD))
         );
     }

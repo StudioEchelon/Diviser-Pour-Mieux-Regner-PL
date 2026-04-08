@@ -35,10 +35,10 @@ public class RadarManager implements Listener {
     public ItemStack createRadar(int amount) {
         ItemStack item = new ItemStack(Material.COMPASS, Math.max(1, amount));
         ItemMeta meta = item.getItemMeta();
-        meta.displayName(Component.text("Radar joueur", NamedTextColor.AQUA));
+        meta.displayName(Component.text("Player radar", NamedTextColor.AQUA));
         meta.lore(List.of(
-                Component.text("Clic gauche: recharge l'arme en main", NamedTextColor.GRAY),
-                Component.text("Clic droit: utilitaire / tracking", NamedTextColor.DARK_GRAY)
+                Component.text("Left-click: reload held weapon", NamedTextColor.GRAY),
+                Component.text("Right-click: utility / tracking", NamedTextColor.DARK_GRAY)
         ));
         int cmd = plugin.getConfig().getInt("radar.custom-model-data", 4001);
         if (cmd > 0) {
@@ -120,7 +120,7 @@ public class RadarManager implements Listener {
                 .filter(p -> !p.getUniqueId().equals(player.getUniqueId()))
                 .filter(p -> p.getLocation().distanceSquared(player.getLocation()) <= radius * radius)
                 .count();
-        player.sendActionBar(Component.text("Radar: " + players + " joueur(s) proche(s) [" + radius + "m]", NamedTextColor.AQUA));
+        player.sendActionBar(Component.text("Radar: " + players + " player(s) nearby [" + radius + "m]", NamedTextColor.AQUA));
         player.playSound(player.getLocation(), Sound.BLOCK_NOTE_BLOCK_BIT, 0.45f, 1.75f);
     }
 }

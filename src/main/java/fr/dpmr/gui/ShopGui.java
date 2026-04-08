@@ -35,6 +35,8 @@ public class ShopGui implements Listener {
     private static final int SLOT_BACK = 49;
     private static final int SLOT_SELL_HUB = 31;
     private static final int[] HUB_RARITY_SLOTS = {10, 11, 12, 13, 14, 15, 16};
+    /** Coloured tier panes directly under each rarity head (row 3). */
+    private static final int[] HUB_RARITY_GLASS_SLOTS = {19, 20, 21, 22, 23, 24, 25};
 
     private static final int SELL_DEPOSIT_SLOT = 22;
     private static final int SELL_BUTTON_SLOT = 31;
@@ -61,7 +63,11 @@ public class ShopGui implements Listener {
         Inventory inv = BoutiqueHolder.create(54, BoutiqueUi.titleHub(), BoutiqueHolder.Kind.HUB, null);
         WeaponRarity[] order = WeaponRarity.values();
         for (int i = 0; i < order.length && i < HUB_RARITY_SLOTS.length; i++) {
-            inv.setItem(HUB_RARITY_SLOTS[i], BoutiqueUi.hubRarityButton(order[i], BoutiqueUi.countWeapons(order[i])));
+            int count = BoutiqueUi.countWeapons(order[i]);
+            inv.setItem(HUB_RARITY_SLOTS[i], BoutiqueUi.hubRarityButton(order[i], count));
+            if (i < HUB_RARITY_GLASS_SLOTS.length) {
+                inv.setItem(HUB_RARITY_GLASS_SLOTS[i], BoutiqueUi.hubRarityTierPane(order[i], count));
+            }
         }
         inv.setItem(SLOT_SELL_HUB, hubSellButton());
         inv.setItem(SLOT_BACK, closeItem());
@@ -112,9 +118,9 @@ public class ShopGui implements Listener {
                 nl.add(Component.empty());
                 nl.add(Component.text("―――――――――――――", NamedTextColor.DARK_GRAY));
                 nl.add(Component.text("◇ ", rarity.color())
-                        .append(Component.text("Prix  ", NamedTextColor.GRAY))
+                        .append(Component.text("Price  ", NamedTextColor.GRAY))
                         .append(Component.text(price + " pts", NamedTextColor.GOLD, TextDecoration.BOLD)));
-                nl.add(Component.text("Clic pour acheter", TextColor.color(0x6BCB8A)));
+                nl.add(Component.text("Left-click to purchase", TextColor.color(0x6BCB8A)));
                 meta.lore(nl);
                 gun.setItemMeta(meta);
                 inv.setItem(WEAPON_SLOTS[i], gun);
@@ -131,11 +137,11 @@ public class ShopGui implements Listener {
         ItemStack sk = NpcSkins.playerHeadFromTextureHash(
                 "10457243a1e3e23bff45c0efd5628fec95993f53f2f1aaa96877d0bb761412bf", "dpmr-boutique-sell");
         ItemMeta m = sk.getItemMeta();
-        m.displayName(Component.text("Reprise d'armes", TextColor.color(0xE8C170), TextDecoration.BOLD));
+        m.displayName(Component.text("Weapon trade-in", TextColor.color(0xE8C170), TextDecoration.BOLD));
         m.lore(List.of(
-                Component.text("Vendre contre des points", NamedTextColor.GRAY),
+                Component.text("Sell DPMR weapons for points", NamedTextColor.GRAY),
                 Component.empty(),
-                Component.text("Cliquer pour ouvrir", TextColor.color(0x8A8A98))
+                Component.text("Click to open", TextColor.color(0x9AA0A6))
         ));
         sk.setItemMeta(m);
         return sk;
@@ -190,8 +196,8 @@ public class ShopGui implements Listener {
         ItemStack i = new ItemStack(mat);
         ItemMeta m = i.getItemMeta();
         m.displayName(enabled
-                ? Component.text("Confirmer la vente · " + price + " pts", NamedTextColor.GREEN, TextDecoration.BOLD)
-                : Component.text("Depose une arme ci-dessus", NamedTextColor.GRAY));
+                ? Component.text("Confirm sale · " + price + " pts", NamedTextColor.GREEN, TextDecoration.BOLD)
+                : Component.text("Deposit a weapon in the slot above", NamedTextColor.GRAY));
         i.setItemMeta(m);
         return i;
     }
@@ -199,10 +205,10 @@ public class ShopGui implements Listener {
     private ItemStack sellAllButtonItem() {
         ItemStack i = new ItemStack(Material.HOPPER);
         ItemMeta m = i.getItemMeta();
-        m.displayName(Component.text("Tout vendre", NamedTextColor.AQUA, TextDecoration.BOLD));
+        m.displayName(Component.text("Sell all from inventory", NamedTextColor.AQUA, TextDecoration.BOLD));
         m.lore(List.of(
-                Component.text("Armes DPMR de l'inventaire", NamedTextColor.GRAY),
-                Component.text("→ conversion en points", NamedTextColor.DARK_GRAY)
+                Component.text("Instantly sells every DPMR weapon", NamedTextColor.GRAY),
+                Component.text("you are carrying for points.", NamedTextColor.DARK_GRAY)
         ));
         i.setItemMeta(m);
         return i;
@@ -220,8 +226,8 @@ public class ShopGui implements Listener {
             lore.add(Component.text("Arme : ", NamedTextColor.GRAY).append(Component.text(weaponId, NamedTextColor.AQUA)));
             lore.add(Component.text("Offre : +" + sellPrice(weaponId) + " pts", NamedTextColor.GREEN));
         } else {
-            lore.add(Component.text("Glisse une arme DPMR", NamedTextColor.GRAY));
-            lore.add(Component.text("dans la fente centrale", NamedTextColor.DARK_GRAY));
+            lore.add(Component.text("Drag a DPMR weapon", NamedTextColor.GRAY));
+            lore.add(Component.text("into the center slot", NamedTextColor.DARK_GRAY));
         }
         m.displayName(Component.text("Comptoir", TextColor.color(0xF0D78C), TextDecoration.BOLD));
         m.lore(lore);
@@ -232,8 +238,8 @@ public class ShopGui implements Listener {
     private static ItemStack backHubShop() {
         ItemStack i = new ItemStack(Material.ARROW);
         ItemMeta m = i.getItemMeta();
-        m.displayName(Component.text("← Retour boutique", NamedTextColor.YELLOW));
-        m.lore(List.of(Component.text("Menu des raretes", NamedTextColor.DARK_GRAY)));
+        m.displayName(Component.text("← Back to shop", NamedTextColor.YELLOW));
+        m.lore(List.of(Component.text("Return to rarity selection", NamedTextColor.DARK_GRAY)));
         i.setItemMeta(m);
         return i;
     }
@@ -241,7 +247,7 @@ public class ShopGui implements Listener {
     private static ItemStack closeItem() {
         ItemStack i = new ItemStack(Material.BARRIER);
         ItemMeta m = i.getItemMeta();
-        m.displayName(Component.text("Fermer", NamedTextColor.RED, TextDecoration.BOLD));
+        m.displayName(Component.text("Close", NamedTextColor.RED, TextDecoration.BOLD));
         i.setItemMeta(m);
         return i;
     }
@@ -329,17 +335,17 @@ public class ShopGui implements Listener {
             int price = buyPrice(id);
             int pts = pointsManager.getPoints(player.getUniqueId());
             if (pts < price) {
-                player.sendMessage(Component.text("Pas assez de points (" + pts + "/" + price + ").", NamedTextColor.RED));
+                player.sendMessage(Component.text("Not enough points (" + pts + "/" + price + ").", NamedTextColor.RED));
                 player.playSound(player.getLocation(), Sound.ENTITY_VILLAGER_NO, 0.7f, 0.8f);
                 return;
             }
             pointsManager.addPoints(player.getUniqueId(), -price);
-            pointsManager.save();
+            pointsManager.saveAsync();
             ItemStack give = weaponManager.createWeaponItem(id, player);
             if (give != null) {
                 player.getInventory().addItem(give);
             }
-            player.sendMessage(Component.text("Achat: " + id + " (-" + price + " pts)", NamedTextColor.GREEN));
+            player.sendMessage(Component.text("Purchased " + id + " (-" + price + " pts).", NamedTextColor.GREEN));
             player.playSound(player.getLocation(), Sound.ENTITY_PLAYER_LEVELUP, 0.6f, 1.3f);
         }
     }
@@ -391,7 +397,7 @@ public class ShopGui implements Listener {
                 int price = sellPrice(id);
                 top.setItem(SELL_DEPOSIT_SLOT, null);
                 pointsManager.addPoints(player.getUniqueId(), price);
-                pointsManager.save();
+                pointsManager.saveAsync();
                 refreshSellView(player, top);
                 player.playSound(player.getLocation(), Sound.ENTITY_PLAYER_LEVELUP, 0.6f, 1.35f);
                 player.sendMessage(Component.text("Vendu: " + id + " (+" + price + " pts)", NamedTextColor.GREEN));
@@ -413,15 +419,15 @@ public class ShopGui implements Listener {
                     player.getInventory().setItem(slot, null);
                 }
                 if (soldCount <= 0) {
-                    player.sendActionBar(Component.text("Aucune arme DPMR a vendre.", NamedTextColor.GRAY));
+                    player.sendActionBar(Component.text("No DPMR weapons to sell.", NamedTextColor.GRAY));
                     player.playSound(player.getLocation(), Sound.ENTITY_VILLAGER_NO, 0.7f, 0.9f);
                     return;
                 }
                 pointsManager.addPoints(player.getUniqueId(), earned);
-                pointsManager.save();
+                pointsManager.saveAsync();
                 refreshSellView(player, top);
                 player.playSound(player.getLocation(), Sound.ENTITY_PLAYER_LEVELUP, 0.7f, 1.35f);
-                player.sendMessage(Component.text("Vente totale: " + soldCount + " arme(s) (+" + earned + " pts)", NamedTextColor.GREEN));
+                player.sendMessage(Component.text("Bulk sale: " + soldCount + " weapon(s) (+" + earned + " pts).", NamedTextColor.GREEN));
                 return;
             }
 
@@ -444,14 +450,14 @@ public class ShopGui implements Listener {
             String id = weaponManager.readWeaponId(current);
             if (id == null) {
                 event.setCancelled(true);
-                player.sendActionBar(Component.text("Tu peux vendre uniquement des armes DPMR.", NamedTextColor.RED));
+                player.sendActionBar(Component.text("You can only sell DPMR weapons.", NamedTextColor.RED));
                 player.playSound(player.getLocation(), Sound.ENTITY_VILLAGER_NO, 0.6f, 0.9f);
                 return;
             }
             ItemStack existing = top.getItem(SELL_DEPOSIT_SLOT);
             if (existing != null && !existing.getType().isAir()) {
                 event.setCancelled(true);
-                player.sendActionBar(Component.text("Slot depot deja occupe.", NamedTextColor.YELLOW));
+                player.sendActionBar(Component.text("Deposit slot already in use.", NamedTextColor.YELLOW));
                 return;
             }
             event.setCancelled(true);
